@@ -1,0 +1,66 @@
+{
+
+  "name": "FMRC",
+
+  "version": "1.0.0",
+
+  "description": "",
+
+  "main": "server.js",
+
+  "type": "module",
+
+  "scripts": {
+
+    "start": "nodemon server.js",
+
+    "createdb": "node scripts/create_db.js",
+
+    "initdb": "node scripts/initdb.js",
+
+    "seed:admin": "node scripts/seedAdmin.js",
+
+    "test": "echo \"Error: no test specified\" && exit 1"
+
+  },
+
+  "keywords": [],
+
+  "author": "",
+
+  "license": "ISC",
+
+  "dependencies": {
+
+    "@tailwindcss/vite": "^4.3.3",
+
+    "bcrypt": "^6.0.0",
+
+    "body-parser": "^2.3.0",
+
+    "cors": "^2.8.6",
+
+    "dotenv": "^17.4.2",
+
+    "express": "^5.2.1",
+
+    "geneticalgorithm": "^1.0.2",
+
+    "jsonwebtoken": "^9.0.3",
+
+    "mongoose": "^9.7.4",
+
+    "mysql2": "^3.23.3",
+
+    "nodemon": "^3.1.14",
+
+    "pdfkit": "^0.20.1",
+
+    "react-router-dom": "^7.18.1",
+
+    "tailwindcss": "^4.3.3"
+
+  }
+
+}
+
