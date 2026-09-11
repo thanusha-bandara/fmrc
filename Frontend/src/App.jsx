@@ -9,6 +9,8 @@ import CompletedTests from './page/CompletedTests';
 import Login from './page/Login';
 import Machinery from './page/Machinery';
 import AdminUserManagement from './page/AdminUserManagement';
+import FinalizeReport from './page/tests/FinalizeReport';
+import ReportsForApproval from './page/tests/ReportsForApproval';
 
 // New Pages
 import SchedulePage from './page/Schedulepage';
@@ -71,6 +73,14 @@ const router = createBrowserRouter([
       {
         path: "schedule",
         element: <SchedulePage />
+      },
+      {
+        path: "finalize-reports",
+        element: <FinalizeReport />
+      },
+      {
+        path: "reports-for-approval",
+        element: <ReportsForApproval />
       },
       {
         path: "resource-management",

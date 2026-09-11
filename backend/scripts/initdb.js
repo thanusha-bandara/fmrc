@@ -9,6 +9,7 @@ const createTables = async () => {
     await db.query(`DROP TABLE IF EXISTS Reports`);
     await db.query(`DROP TABLE IF EXISTS Schedules`);
     await db.query(`DROP TABLE IF EXISTS Test_Records`);
+    await db.query(`DROP TABLE IF EXISTS Test_Form_Schemas`);
     await db.query(`DROP TABLE IF EXISTS Staff_Availability`);
     await db.query(`DROP TABLE IF EXISTS Weather_Logs`);
     await db.query(`DROP TABLE IF EXISTS FMRC_Calendar`);
@@ -52,6 +53,16 @@ const createTables = async () => {
         model VARCHAR(100),
         supplier VARCHAR(100),
         registration_date DATE NOT NULL,
+        document_ref_number VARCHAR(50) NULL,
+        manufacturer_country VARCHAR(100) NULL,
+        importer_name VARCHAR(150) NULL,
+        importer_address TEXT NULL,
+        importer_tel VARCHAR(100) NULL,
+        importer_fax VARCHAR(100) NULL,
+        importer_web VARCHAR(150) NULL,
+        rops_available BOOLEAN NULL,
+        safety_note TEXT NULL,
+        background_note TEXT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB
     `);
@@ -101,6 +112,22 @@ const createTables = async () => {
 
 
 
+    // Test Form Schemas Table (structured field/table definitions for the standard test
+    // catalog, stored as JSON so a layout change is a DB update, not a code deploy -- see
+    // scripts/testSchemaDefinitions.js + seed_test_schemas.js)
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS Test_Form_Schemas (
+        schema_id INT AUTO_INCREMENT PRIMARY KEY,
+        schema_key VARCHAR(50) UNIQUE NOT NULL,
+        label VARCHAR(150) NOT NULL,
+        formula_set VARCHAR(50) NULL,
+        schema_json JSON NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+      ) ENGINE=InnoDB
+    `);
+    console.log("Test_Form_Schemas table created.");
+
     // Test Records Table
     await db.query(`
       CREATE TABLE IF NOT EXISTS Test_Records (
@@ -113,6 +140,10 @@ const createTables = async () => {
         technical_assistant_id INT,
         mechanical_engineer_id INT,
         chief_engineer_id INT,
+        schema_id INT NULL,
+        include_in_final_report BOOLEAN DEFAULT FALSE,
+        group_key VARCHAR(50) NULL,
+        catalog_key VARCHAR(50) NULL,
         form_data JSON NULL,
         status ENUM('Draft', 'Submitted', 'Reviewed', 'Approved', 'Rejected') DEFAULT 'Draft',
         me_recommendation ENUM('Pending', 'Recommended', 'Not Recommended') DEFAULT 'Pending',
@@ -126,7 +157,8 @@ const createTables = async () => {
         FOREIGN KEY (machine_id) REFERENCES Machinery(machine_id) ON DELETE CASCADE,
         FOREIGN KEY (technical_assistant_id) REFERENCES Users(user_id) ON DELETE SET NULL,
         FOREIGN KEY (mechanical_engineer_id) REFERENCES Users(user_id) ON DELETE SET NULL,
-        FOREIGN KEY (chief_engineer_id) REFERENCES Users(user_id) ON DELETE SET NULL
+        FOREIGN KEY (chief_engineer_id) REFERENCES Users(user_id) ON DELETE SET NULL,
+        FOREIGN KEY (schema_id) REFERENCES Test_Form_Schemas(schema_id) ON DELETE SET NULL
       ) ENGINE=InnoDB
     `);
     console.log("Test_Records table created.");
@@ -154,12 +186,16 @@ const createTables = async () => {
     await db.query(`
       CREATE TABLE IF NOT EXISTS Reports (
         report_id INT AUTO_INCREMENT PRIMARY KEY,
-        test_id INT UNIQUE NOT NULL,
+        test_id INT UNIQUE NULL,
+        machine_id INT NULL,
         report_type VARCHAR(100) NOT NULL,
         pdf_file_path VARCHAR(255) NOT NULL,
-        approved_by INT NOT NULL,
+        approved_by INT NULL,
         approval_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         certification_status ENUM('Certified', 'Failed', 'Conditional') DEFAULT 'Certified',
+        ce_status ENUM('Pending', 'Approved', 'Rejected') DEFAULT 'Pending',
+        ce_comments TEXT NULL,
+        decided_at TIMESTAMP NULL,
         FOREIGN KEY (test_id) REFERENCES Test_Records(test_id) ON DELETE CASCADE,
         FOREIGN KEY (approved_by) REFERENCES Users(user_id) ON DELETE RESTRICT
       ) ENGINE=InnoDB

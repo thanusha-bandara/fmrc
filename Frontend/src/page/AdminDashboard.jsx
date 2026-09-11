@@ -7,12 +7,21 @@ export default function AdminDashboard() {
   const [summary, setSummary] = useState(null);
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
 
   useEffect(() => {
-    Promise.all([getDashboardSummary(), listReports()])
-      .then(([summaryData, reportData]) => {
-        setSummary(summaryData);
-        setReports(reportData.slice(0, 6));
+    // Independent requests -- one failing (e.g. reports) shouldn't blank out the stats the
+    // other one already loaded successfully.
+    Promise.allSettled([getDashboardSummary(), listReports()])
+      .then(([summaryResult, reportsResult]) => {
+        if (summaryResult.status === 'fulfilled') {
+          setSummary(summaryResult.value);
+        } else {
+          setError('Could not load system stats.');
+        }
+        if (reportsResult.status === 'fulfilled') {
+          setReports(reportsResult.value.slice(0, 6));
+        }
       })
       .finally(() => setLoading(false));
   }, []);
@@ -27,6 +36,10 @@ export default function AdminDashboard() {
   return (
     <div className="p-8 space-y-6">
       <h1 className="text-2xl font-bold text-gray-900 tracking-tight">System Overview</h1>
+
+      {error && (
+        <div className="rounded-md border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700 font-medium">{error}</div>
+      )}
 
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         {stats.map((s, i) => {

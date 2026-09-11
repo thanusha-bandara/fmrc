@@ -4,6 +4,7 @@ import { fileURLToPath } from "url";
 import PDFDocument from "pdfkit";
 import { createReport } from "../models/report.js";
 import { listTestRecords } from "../models/testRecord.js";
+import { getSchemasByIds } from "../models/testFormSchema.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const REPORTS_DIR = path.join(__dirname, "..", "reports");
@@ -12,10 +13,38 @@ if (!fs.existsSync(REPORTS_DIR)) {
     fs.mkdirSync(REPORTS_DIR, { recursive: true });
 }
 
-const formatValue = (value) => {
+export const formatValue = (value) => {
     if (value === null || value === undefined || value === "") return "N/A";
     if (typeof value === "boolean") return value ? "Yes" : "No";
     return String(value);
+};
+
+// Renders a structured test's form_data (flat, composite-dotted-key object) as labeled
+// sections/tables using the field/table definitions from the matching template, instead of
+// dumping raw dotted keys. Table rows are printed as one indented line per row listing every
+// column's label=value -- pdfkit already auto-paginates via doc.text(), so no manual page
+// handling is needed here.
+export const renderTemplateSection = (doc, formData, template) => {
+    template.sections.forEach((section) => {
+        doc.moveDown(0.4);
+        doc.fontSize(10).font("Helvetica-Bold").text(section.label, { indent: 10 });
+        doc.font("Helvetica").fontSize(9);
+
+        if (section.type === "fields") {
+            section.fields.forEach((field) => {
+                const value = formData[`${section.key}.${field.key}`];
+                const suffix = field.auto ? " (computed)" : "";
+                doc.text(`  ${field.label}: ${formatValue(value)}${suffix}`, { indent: 20 });
+            });
+        } else if (section.type === "table") {
+            section.rows.forEach((row) => {
+                const cells = section.columns
+                    .map((col) => `${col.label}=${formatValue(formData[`${section.key}.${row.key}.${col.key}`])}`)
+                    .join("   ");
+                doc.text(`  ${row.label}:  ${cells}`, { indent: 20 });
+            });
+        }
+    });
 };
 
 export const generateMachineReport = async (machineId, chiefEngineerId) => {
@@ -28,6 +57,11 @@ export const generateMachineReport = async (machineId, chiefEngineerId) => {
 
     // We can get machine info from the first test record
     const firstTest = allTests[0];
+
+    // Batch-fetch the (typically <=5) distinct structured schemas actually in use, rather
+    // than one query per test.
+    const schemaIds = [...new Set(allTests.map((t) => t.schema_id).filter(Boolean))];
+    const schemasById = await getSchemasByIds(schemaIds);
 
     const doc = new PDFDocument({ margin: 50, size: 'A4' });
     const writeStream = fs.createWriteStream(filePath);
@@ -75,13 +109,18 @@ export const generateMachineReport = async (machineId, chiefEngineerId) => {
         }
 
         doc.fontSize(10).font("Helvetica");
-        const entries = Object.entries(parsedFormData);
-        if (entries.length === 0) {
-            doc.text("  No parameters recorded.", { indent: 10 });
+        const schema = t.schema_id ? schemasById[t.schema_id] : null;
+        if (schema) {
+            renderTemplateSection(doc, parsedFormData, schema);
         } else {
-            entries.forEach(([key, value]) => {
-                doc.text(`  • ${key}: ${formatValue(value)}`, { indent: 10 });
-            });
+            const entries = Object.entries(parsedFormData);
+            if (entries.length === 0) {
+                doc.text("  No parameters recorded.", { indent: 10 });
+            } else {
+                entries.forEach(([key, value]) => {
+                    doc.text(`  • ${key}: ${formatValue(value)}`, { indent: 10 });
+                });
+            }
         }
         
         doc.moveDown(0.5);

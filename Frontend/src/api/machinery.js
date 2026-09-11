@@ -11,3 +11,9 @@ export const updateMachine = (id, payload) =>
     apiClient.put(`/machinery/${id}`, payload).then((r) => r.data.machine);
 
 export const deleteMachine = (id) => apiClient.delete(`/machinery/${id}`).then((r) => r.data);
+
+export const getFinalizeStatus = (machineId) =>
+    apiClient.get(`/machinery/${machineId}/finalize-status`).then((r) => r.data.status);
+
+export const finalizeReport = (machineId, selections) =>
+    apiClient.post(`/machinery/${machineId}/finalize-report`, { selections }).then((r) => r.data);

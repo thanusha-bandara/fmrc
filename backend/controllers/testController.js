@@ -149,6 +149,12 @@ export const decideTest = async (req, res) => {
         if (existing.status !== "Reviewed") {
             return res.status(409).json({ success: false, message: `Test must be Reviewed by a Mechanical Engineer first (currently ${existing.status}).` });
         }
+        // 4-Wheel Tractor tests no longer get individual CE decisions -- the Chief Engineer
+        // approves/rejects the ME-finalized compiled report as a whole instead (see
+        // finalReportController.js / reportController.js#decideReport).
+        if (existing.catalog_key === "FOUR_WHEEL_TRACTOR") {
+            return res.status(409).json({ success: false, message: "This test is part of a 4-Wheel Tractor final report. Once a Mechanical Engineer finalizes the report, approve or reject it from Reports for Approval instead of deciding on individual tests." });
+        }
 
         const test = await decideTestRecord(req.params.id, req.user.user_id, decision, comments);
 
@@ -158,11 +164,18 @@ export const decideTest = async (req, res) => {
         // After ANY decision (Approved or Rejected), check if all tests for this machine are complete
         const allTestsForMachine = await listTestRecords({ machineId: existing.machine_id });
         const pendingTests = allTestsForMachine.filter(t => !['Approved', 'Rejected'].includes(t.status));
-        
+
         if (pendingTests.length === 0) {
-            // All tests are complete! Generate the machine report!
-            report = await generateMachineReport(existing.machine_id, req.user.user_id);
-            message = `Test ${decision.toLowerCase()}. All tests for this machine are now complete, and the final certification report has been generated!`;
+            // All tests are complete -- generate the generic report dump (the 4-Wheel Tractor's
+            // official template is generated earlier, by the ME's Finalize Report action, not
+            // here). Kept in its own try/catch so a report-generation problem never fails the
+            // CE's otherwise-valid individual decision.
+            try {
+                report = await generateMachineReport(existing.machine_id, req.user.user_id);
+                message = `Test ${decision.toLowerCase()}. All tests for this machine are now complete, and the final certification report has been generated!`;
+            } catch (reportError) {
+                message = `Test ${decision.toLowerCase()}. All tests are complete, but the final report could not be generated yet: ${reportError.message}`;
+            }
         } else {
             message = `Test ${decision.toLowerCase()}. There are still ${pendingTests.length} tests pending for this machine before the final report can be generated.`;
         }

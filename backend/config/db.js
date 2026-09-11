@@ -10,6 +10,13 @@ const pool = mysql2.createPool({
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
+  // DATE columns (registration_date, scheduled_date, etc.) have no time-of-day or timezone
+  // of their own -- returning them as JS Date objects makes mysql2 anchor them to the
+  // server process's local timezone, which then shifts a day backwards once serialized to
+  // UTC ISO strings in JSON responses (e.g. stored '2024-11-22' becomes
+  // '2024-11-21T18:30:00.000Z' in a UTC+5:30 environment). Returning DATE columns as plain
+  // 'YYYY-MM-DD' strings instead avoids that ambiguity entirely.
+  dateStrings: ["DATE"],
 });
 
 pool.getConnection((err, connection) => {

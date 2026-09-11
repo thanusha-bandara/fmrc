@@ -8,6 +8,8 @@ import calendarRoutes from "./routes/calendarRoutes.js";
 import userRouter from "./routes/userRouter.js";
 import machineryRoutes from "./routes/machineryRoutes.js";
 import testRoutes from "./routes/testRoutes.js";
+import testTemplateRoutes from "./routes/testTemplateRoutes.js";
+import testSchemaRoutes from "./routes/testSchemaRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
 import resourceRoutes from "./routes/resourceRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
@@ -26,6 +28,8 @@ app.get("/api/health", (req, res) => {
 app.use('/api/users', userRouter);
 app.use('/api/machinery', machineryRoutes);
 app.use('/api/tests', testRoutes);
+app.use('/api/test-templates', testTemplateRoutes);
+app.use('/api/test-schema', testSchemaRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/resources', resourceRoutes);
 app.use('/api/schedule', scheduleRoutes);

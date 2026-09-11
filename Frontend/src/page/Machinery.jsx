@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Wrench, Plus, Search, X, ChevronDown, ChevronRight, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
-import { listMachinery, registerMachine } from '../api/machinery';
+import { listMachinery, registerMachine, updateMachine } from '../api/machinery';
 import { createTest, listTests } from '../api/tests';
+import { generateStandardTestSet, getCatalogs } from '../api/testTemplates';
 import { getErrorMessage } from '../api/client';
+import TestDetailModal from './tests/TestDetailModal';
 
 export default function Machinery() {
   const role = localStorage.getItem('userRole') || 'TA';
+  const userId = Number(localStorage.getItem('userId'));
   const isAdmin = role === 'ADMIN';
 
   const [machines, setMachines] = useState([]);
@@ -24,6 +27,25 @@ export default function Machinery() {
   const [machineTests, setMachineTests] = useState({});
   const [loadingTests, setLoadingTests] = useState(false);
 
+  // Click-to-fill: opens the same test detail/fill modal used on the Assigned/Pending/
+  // Completed lists, straight off a machine's expanded test row.
+  const [activeTest, setActiveTest] = useState(null);
+
+  // Standard test set catalogs (one per machine type, e.g. 4-Wheel Tractor / Combine
+  // Harvester) -- fetched once so the admin can pick which one to generate per machine.
+  const [catalogs, setCatalogs] = useState({});
+  const [selectedCatalog, setSelectedCatalog] = useState('');
+
+  // Report Details modal (title page / importer / safety / background fields the official
+  // final report needs, captured once per machine).
+  const [showReportDetailsModal, setShowReportDetailsModal] = useState(false);
+  const [reportDetailsMachine, setReportDetailsMachine] = useState(null);
+  const [reportDetailsForm, setReportDetailsForm] = useState({
+    document_ref_number: '', manufacturer_country: '',
+    importer_name: '', importer_address: '', importer_tel: '', importer_fax: '', importer_web: '',
+    rops_available: false, safety_note: '', background_note: ''
+  });
+
   const loadMachines = () => {
     setLoading(true);
     listMachinery()
@@ -34,6 +56,24 @@ export default function Machinery() {
 
   useEffect(() => { loadMachines(); }, []);
 
+  useEffect(() => {
+    getCatalogs()
+      .then((data) => {
+        setCatalogs(data);
+        setSelectedCatalog((prev) => prev || Object.keys(data)[0] || '');
+      })
+      .catch(() => {});
+  }, []);
+
+  const refreshMachineTests = async (machineId) => {
+    try {
+      const tests = await listTests({ machineId });
+      setMachineTests((prev) => ({ ...prev, [machineId]: tests }));
+    } catch (err) {
+      console.error("Failed to load tests", err);
+    }
+  };
+
   const toggleExpand = async (machineId) => {
     if (expandedMachine === machineId) {
       setExpandedMachine(null);
@@ -42,18 +82,25 @@ export default function Machinery() {
     setExpandedMachine(machineId);
     if (!machineTests[machineId]) {
       setLoadingTests(true);
-      try {
-        const tests = await listTests({ machineId });
-        setMachineTests((prev) => ({ ...prev, [machineId]: tests }));
-      } catch (err) {
-        console.error("Failed to load tests", err);
-      } finally {
-        setLoadingTests(false);
-      }
+      await refreshMachineTests(machineId);
+      setLoadingTests(false);
     }
   };
 
+  // registration_date arrives as a plain 'YYYY-MM-DD' string (see backend/config/db.js's
+  // dateStrings option) -- format it directly instead of round-tripping through a JS Date,
+  // which would reintroduce timezone-shift bugs.
+  const formatDate = (dateStr) => {
+    if (!dateStr) return '-';
+    const [year, month, day] = dateStr.split('-');
+    const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return `${Number(day)} ${MONTHS[Number(month) - 1]} ${year}`;
+  };
+
   const statusFor = (m) => {
+    // Certified either the legacy way (every individual test Approved) or, for a 4-Wheel
+    // Tractor machine, via the Chief Engineer approving its compiled final report.
+    if (m.has_approved_report > 0) return 'Certified';
     if (m.approved_tests > 0 && m.approved_tests === m.total_tests) return 'Certified';
     if (m.total_tests > 0) return 'Testing';
     return 'Registered';
@@ -112,6 +159,63 @@ export default function Machinery() {
     }
   };
 
+  const handleGenerateStandardSet = async (machine) => {
+    if (!selectedCatalog) return;
+    const catalogLabel = catalogs[selectedCatalog] || selectedCatalog;
+    if (!window.confirm(`Create the standard test set (${catalogLabel}) for ${machine.machine_name}? This cannot be undone.`)) return;
+    setSaving(true);
+    setError('');
+    try {
+      await generateStandardTestSet(machine.machine_id, selectedCatalog);
+      setMachineTests((prev) => {
+        const next = { ...prev };
+        delete next[machine.machine_id];
+        return next;
+      });
+      if (expandedMachine === machine.machine_id) {
+        setExpandedMachine(null);
+      }
+      loadMachines();
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not generate the standard test set.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const openReportDetails = (machine) => {
+    setReportDetailsMachine(machine);
+    setReportDetailsForm({
+      document_ref_number: machine.document_ref_number || '',
+      manufacturer_country: machine.manufacturer_country || '',
+      importer_name: machine.importer_name || '',
+      importer_address: machine.importer_address || '',
+      importer_tel: machine.importer_tel || '',
+      importer_fax: machine.importer_fax || '',
+      importer_web: machine.importer_web || '',
+      rops_available: Boolean(machine.rops_available),
+      safety_note: machine.safety_note || '',
+      background_note: machine.background_note || ''
+    });
+    setShowReportDetailsModal(true);
+  };
+
+  const handleSaveReportDetails = async (e) => {
+    e.preventDefault();
+    if (!reportDetailsMachine) return;
+    setSaving(true);
+    setError('');
+    try {
+      await updateMachine(reportDetailsMachine.machine_id, reportDetailsForm);
+      setShowReportDetailsModal(false);
+      loadMachines();
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not save report details.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   return (
     <div className="p-8 space-y-6">
       <div className="flex justify-between items-center">
@@ -151,6 +255,7 @@ export default function Machinery() {
               <th className="py-4 px-6">Machine Name</th>
               <th className="py-4 px-6">Model</th>
               <th className="py-4 px-6">Supplier</th>
+              <th className="py-4 px-6">Registered</th>
               <th className="py-4 px-6">Status</th>
               <th className="py-4 px-6 text-center">Tests</th>
               {isAdmin && <th className="py-4 px-6 text-right">Actions</th>}
@@ -158,9 +263,9 @@ export default function Machinery() {
           </thead>
           <tbody className="divide-y divide-gray-100">
             {loading ? (
-              <tr><td colSpan={isAdmin ? 7 : 6} className="py-8 px-6 text-center text-gray-400">Loading...</td></tr>
+              <tr><td colSpan={isAdmin ? 8 : 7} className="py-8 px-6 text-center text-gray-400">Loading...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={isAdmin ? 7 : 6} className="py-8 px-6 text-center text-gray-400">No machinery found.</td></tr>
+              <tr><td colSpan={isAdmin ? 8 : 7} className="py-8 px-6 text-center text-gray-400">No machinery found.</td></tr>
             ) : filtered.map(machine => (
               <React.Fragment key={machine.machine_id}>
                 <tr 
@@ -175,6 +280,7 @@ export default function Machinery() {
                   </td>
                   <td className="py-4 px-6 text-gray-600">{machine.model || '-'}</td>
                   <td className="py-4 px-6 text-gray-600">{machine.supplier || '-'}</td>
+                  <td className="py-4 px-6 text-gray-600 whitespace-nowrap">{formatDate(machine.registration_date)}</td>
                   <td className="py-4 px-6">
                     <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">
                       {statusFor(machine)}
@@ -182,12 +288,34 @@ export default function Machinery() {
                   </td>
                   <td className="py-4 px-6 text-center text-gray-600">{machine.total_tests || 0}</td>
                   {isAdmin && (
-                    <td className="py-4 px-6 text-right">
-                      <button 
+                    <td className="py-4 px-6 text-right space-x-2 whitespace-nowrap">
+                      <button
                         onClick={(e) => { e.stopPropagation(); setActiveMachine(machine); setShowTestModal(true); }}
                         className="text-xs font-bold text-[#006B33] hover:underline bg-[#006B33]/10 px-3 py-1.5 rounded-full"
                       >
                         + Add Test
+                      </button>
+                      <select
+                        value={selectedCatalog}
+                        onChange={(e) => setSelectedCatalog(e.target.value)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-xs font-semibold text-gray-700 border border-gray-300 rounded-full px-2.5 py-1.5 bg-white outline-none focus:border-[#006B33]"
+                      >
+                        {Object.entries(catalogs).map(([key, label]) => (
+                          <option key={key} value={key}>{label}</option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleGenerateStandardSet(machine); }}
+                        className="text-xs font-bold text-[#006B33] hover:underline bg-[#006B33]/10 px-3 py-1.5 rounded-full"
+                      >
+                        Generate Standard Set
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); openReportDetails(machine); }}
+                        className="text-xs font-bold text-[#006B33] hover:underline bg-[#006B33]/10 px-3 py-1.5 rounded-full"
+                      >
+                        Report Details
                       </button>
                     </td>
                   )}
@@ -236,7 +364,7 @@ export default function Machinery() {
                                   }
 
                                   return (
-                                    <tr key={t.test_id} className="hover:bg-gray-50">
+                                    <tr key={t.test_id} onClick={() => setActiveTest(t)} className="hover:bg-gray-50 cursor-pointer">
                                       <td className="py-3 px-4 font-medium text-gray-900">{t.test_name}</td>
                                       <td className="py-3 px-4 text-gray-600">{t.is_field_test ? 'Field Test' : 'Lab Test'}</td>
                                       <td className="py-3 px-4 text-gray-600">{t.technical_assistant_name || 'Unassigned'}</td>
@@ -342,6 +470,75 @@ export default function Machinery() {
             </form>
           </div>
         </div>
+      )}
+
+      {/* Report Details Modal -- title page / importer / safety / background fields the
+          official final report needs (see backend/services/officialTractorReportService.js) */}
+      {showReportDetailsModal && (
+        <div onClick={() => setShowReportDetailsModal(false)} className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-xl max-w-lg w-full p-6 shadow-xl relative max-h-[85vh] overflow-y-auto">
+            <button onClick={() => setShowReportDetailsModal(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-700">
+              <X size={20} />
+            </button>
+            <h3 className="text-lg font-bold text-gray-900 mb-1">Report Details</h3>
+            <p className="text-sm text-gray-500 mb-4">For {reportDetailsMachine?.machine_name}</p>
+            <form onSubmit={handleSaveReportDetails} className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Document Reference No.</label>
+                <input value={reportDetailsForm.document_ref_number} onChange={(e) => setReportDetailsForm({ ...reportDetailsForm, document_ref_number: e.target.value })}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20" placeholder="e.g. FMRC/FWT/03/2026" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Manufacturer's Country of Origin</label>
+                <input value={reportDetailsForm.manufacturer_country} onChange={(e) => setReportDetailsForm({ ...reportDetailsForm, manufacturer_country: e.target.value })}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20" placeholder="Leave blank for 'Not provided by the importer'" />
+              </div>
+              <div className="border-t border-gray-100 pt-3">
+                <p className="text-sm font-semibold text-gray-700 mb-2">Importer's Contact Details</p>
+                <div className="space-y-2">
+                  <input value={reportDetailsForm.importer_name} onChange={(e) => setReportDetailsForm({ ...reportDetailsForm, importer_name: e.target.value })}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20" placeholder="Importer name" />
+                  <textarea value={reportDetailsForm.importer_address} onChange={(e) => setReportDetailsForm({ ...reportDetailsForm, importer_address: e.target.value })} rows={2}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20 resize-none" placeholder="Address" />
+                  <div className="grid grid-cols-2 gap-2">
+                    <input value={reportDetailsForm.importer_tel} onChange={(e) => setReportDetailsForm({ ...reportDetailsForm, importer_tel: e.target.value })}
+                      className="rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20" placeholder="Tel" />
+                    <input value={reportDetailsForm.importer_fax} onChange={(e) => setReportDetailsForm({ ...reportDetailsForm, importer_fax: e.target.value })}
+                      className="rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20" placeholder="Fax" />
+                  </div>
+                  <input value={reportDetailsForm.importer_web} onChange={(e) => setReportDetailsForm({ ...reportDetailsForm, importer_web: e.target.value })}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20" placeholder="Website" />
+                </div>
+              </div>
+              <div className="border-t border-gray-100 pt-3">
+                <label className="flex items-center gap-2 mb-2">
+                  <input type="checkbox" checked={reportDetailsForm.rops_available} onChange={(e) => setReportDetailsForm({ ...reportDetailsForm, rops_available: e.target.checked })} />
+                  <span className="text-sm text-gray-600">Fitted with Rollover Protective System (ROPS)?</span>
+                </label>
+                <textarea value={reportDetailsForm.safety_note} onChange={(e) => setReportDetailsForm({ ...reportDetailsForm, safety_note: e.target.value })} rows={2}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20 resize-none" placeholder="Additional safety note (optional)" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Background (optional override)</label>
+                <textarea value={reportDetailsForm.background_note} onChange={(e) => setReportDetailsForm({ ...reportDetailsForm, background_note: e.target.value })} rows={3}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20 resize-none" placeholder="Leave blank to auto-generate from the model name" />
+              </div>
+              <button type="submit" disabled={saving} className="w-full bg-[#006B33] text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-green-700 disabled:opacity-60">
+                {saving ? 'Saving...' : 'Save Report Details'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {activeTest && (
+        <TestDetailModal
+          test={activeTest}
+          role={role}
+          userId={userId}
+          onClose={() => setActiveTest(null)}
+          onSaved={() => refreshMachineTests(activeTest.machine_id)}
+        />
       )}
     </div>
   );
