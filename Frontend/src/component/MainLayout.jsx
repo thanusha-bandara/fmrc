@@ -54,14 +54,14 @@ export default function MainLayout() {
       {/*  FULL WIDTH TOP HEADER  */}
       <header className="h-16 bg-white border-b border-gray-200 px-4 flex items-center justify-between flex-shrink-0 z-30 relative">
         {/* Left Side (Menu + Logo) */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3 sm:gap-4">
           <button 
             onClick={() => setSidebarOpen(!sidebarOpen)}
             className="p-1.5 rounded-lg hover:bg-gray-100 text-gray-700 transition-colors flex justify-center items-center"
           >
             <Menu size={22} />
           </button>
-          <img src={fmrcLogo} alt="FMRC Logo" className="h-12 object-contain" />
+          <img src={fmrcLogo} alt="FMRC Logo" className="h-12 w-[85px] md:w-auto object-cover md:object-contain object-left" />
         </div>
 
         {/* Right Side (User Profile & Notifications) */}
@@ -116,14 +116,14 @@ export default function MainLayout() {
                   <NavLink
                     key={item.id}
                     to={item.path}
-                    className={({ isActive }) => `w-full flex items-center gap-3 px-3 py-2.5 rounded-lg font-medium text-sm transition-colors text-left ${
+                    className={({ isActive }) => `w-full flex items-center ${sidebarOpen ? 'gap-3 px-3' : 'justify-center'} py-2.5 rounded-lg font-medium text-sm transition-colors text-left ${
                       isActive 
                         ? 'bg-[#e8f5e9] text-[#006B33] font-semibold border-r-4 border-[#006B33]' 
                         : 'text-gray-600 hover:bg-gray-50 hover:text-[#006B33]'
                     }`}
                   >
-                    <Icon size={20} className="flex-shrink-0 mx-auto md:mx-0" />
-                    {sidebarOpen && <span>{item.label}</span>}
+                    <Icon size={20} className="flex-shrink-0" />
+                    {sidebarOpen && <span className="whitespace-nowrap">{item.label}</span>}
                   </NavLink>
                 );
               })}
@@ -133,9 +133,9 @@ export default function MainLayout() {
           <div className="p-4 border-t border-gray-100">
             <button 
               onClick={() => setShowSupportModal(true)}
-              className="w-full flex items-center gap-3 text-gray-600 hover:text-gray-900 text-sm font-medium transition-colors px-1"
+              className={`w-full flex items-center ${sidebarOpen ? 'gap-3' : 'justify-center'} text-gray-600 hover:text-gray-900 text-sm font-medium transition-colors px-1`}
             >
-              <HelpCircle size={20} className="flex-shrink-0 mx-auto md:mx-0" />
+              <HelpCircle size={20} className="flex-shrink-0" />
               {sidebarOpen && <span>Support</span>}
             </button>
           </div>

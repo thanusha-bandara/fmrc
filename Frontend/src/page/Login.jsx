@@ -1,7 +1,8 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { User, Lock, Eye, EyeOff, ArrowRight, ShieldCheck, Phone } from "lucide-react";
-import tractorBg from "../assets/hero.png";
+import loginBg from "../assets/login.jpg";
+import fmrcLogo from "../assets/FMRClogo.png";
 import { login } from "../api/auth";
 import { toShortRole } from "../api/roles";
 import { getErrorMessage } from "../api/client";
@@ -53,21 +54,14 @@ export default function FMRCLogin() {
         {/* Left panel - visual with image background */}
 <div 
   className="relative hidden md:flex flex-col justify-end min-h-[640px] overflow-hidden bg-cover bg-center bg-no-repeat"
-  style={{ backgroundImage: `url(${tractorBg})` }}
+  style={{ backgroundImage: `url(${loginBg})` }}
 >
           {/* Subtle dark overlay for contrast */}
           <div className="absolute inset-0 bg-black/20" />
 
           {/* Footer brand strip */}
-          <div className="relative bg-white/95 px-4 py-2 flex items-center gap-3">
-            <div className="shrink-0 leading-none">
-              <span className="block text-red-600 font-extrabold italic text-lg tracking-tight">FMRC</span>
-            </div>
-            <div className="text-[10px] leading-tight text-gray-700">
-              <p className="font-medium">කෘෂි යාන්ත්‍රීකරණ පර්යේෂණ මධ්‍යස්ථානය - මහඉලුප්පල්ලම</p>
-              <p className="font-medium">பண்ணை இயந்திர ஆராய்ச்சி நிலையம் - மகஇலுப்பள்ளம</p>
-              <p className="font-semibold text-gray-800">Farm Mechanization Research Centre – Mahailluppallama</p>
-            </div>
+          <div className="relative bg-white/95 px-4 py-3 flex justify-center items-center">
+            <img src={fmrcLogo} alt="FMRC Logo" className="h-12 object-contain" />
           </div>
         </div>
 
