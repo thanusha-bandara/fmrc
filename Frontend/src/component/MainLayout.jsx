@@ -1,20 +1,63 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { NavLink, Outlet } from 'react-router-dom';
 import {
-  Menu, Bell, Cloud, CloudCheck, User,
+  Menu, Bell, Cloud, CloudCheck, CloudOff, User,
   LayoutDashboard, Wrench, ClipboardList,
   SlidersHorizontal, Calendar as CalendarIcon,
   HelpCircle, X, Users, FileCheck2
 } from 'lucide-react';
 import fmrcLogo from '../assets/FMRClogo.png';
+import { syncOfflineData } from '../api/syncManager';
+import { db } from '../db/offlineDB';
 
 export default function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [syncState, setSyncState] = useState('synced'); // 'synced', 'offline', 'syncing', 'error'
+  const [pendingCount, setPendingCount] = useState(0);
   
   const [userRole, setUserRole] = useState(localStorage.getItem('userRole') || 'TA');
   const [userName, setUserName] = useState(localStorage.getItem('userName') || 'User');
+
+  useEffect(() => {
+    const updateCount = async () => {
+      try {
+        const count = await db.syncQueue.count();
+        setPendingCount(count);
+        if (count > 0 && navigator.onLine) {
+          syncOfflineData();
+        } else if (!navigator.onLine) {
+          setSyncState('offline');
+        } else if (count === 0) {
+          setSyncState('synced');
+        }
+      } catch (err) {}
+    };
+
+    updateCount();
+
+    const handleOnline = () => {
+      setSyncState('syncing');
+      syncOfflineData();
+    };
+    
+    const handleOffline = () => setSyncState('offline');
+    const handleSyncStatus = (e) => setSyncState(e.detail);
+    const handleDataAdded = () => updateCount();
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('sync-status', handleSyncStatus);
+    window.addEventListener('offline-data-added', handleDataAdded);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+      window.removeEventListener('sync-status', handleSyncStatus);
+      window.removeEventListener('offline-data-added', handleDataAdded);
+    };
+  }, []);
 
 
   const getRoleName = (role) => {
@@ -70,9 +113,21 @@ export default function MainLayout() {
             <Bell size={20} />
           </button>
 
-          <div className="flex items-center gap-1.5 px-3 py-1 bg-green-50 text-[#006B33] border border-green-200 rounded-full text-xs font-semibold hidden md:flex">
-            <CloudCheck size={16} className="text-[#10b981]" />
-            <span>System Synced</span>
+          <div className={`flex items-center gap-1.5 px-2 md:px-3 py-1 border rounded-full text-xs font-semibold transition-colors cursor-pointer ${
+            syncState === 'offline' ? 'bg-red-50 text-red-700 border-red-200' :
+            syncState === 'syncing' ? 'bg-blue-50 text-blue-700 border-blue-200' :
+            syncState === 'error' ? 'bg-yellow-50 text-yellow-700 border-yellow-200' :
+            'bg-green-50 text-[#006B33] border-green-200'
+          }`} onClick={() => { if(syncState !== 'synced') syncOfflineData(); }}>
+            {syncState === 'offline' ? <CloudOff size={16} className="text-red-500" /> :
+             syncState === 'syncing' ? <Cloud size={16} className="text-blue-500 animate-pulse" /> :
+             <CloudCheck size={16} className={syncState === 'error' ? 'text-yellow-500' : 'text-[#10b981]'} />}
+            <span className="hidden sm:inline">
+              {syncState === 'offline' ? `Offline (${pendingCount} pending)` :
+               syncState === 'syncing' ? 'Syncing...' :
+               syncState === 'error' ? `Sync Failed (${pendingCount} pending)` :
+               'System Synced'}
+            </span>
           </div>
 
           <button className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-full">

@@ -1,4 +1,5 @@
 import axios from "axios";
+import { db } from "../db/offlineDB";
 
 export const API_BASE_URL = import.meta.env.VITE_API_URL?.includes('localhost') 
     ? `http://${window.location.hostname}:3000/api` 
@@ -19,7 +20,37 @@ apiClient.interceptors.request.use((config) => {
 
 apiClient.interceptors.response.use(
     (response) => response,
-    (error) => {
+    async (error) => {
+        if (!error.response || error.code === 'ERR_NETWORK') {
+            const config = error.config;
+            
+            // Do not intercept authentication requests (login, etc)
+            if (config && config.url && config.url.includes('/auth/')) {
+                return Promise.reject(new Error("Internet connection is required to login."));
+            }
+
+            if (config && ['post', 'put', 'delete', 'patch'].includes(config.method?.toLowerCase()) && !config.__isSync) {
+                try {
+                    await db.syncQueue.add({
+                        url: config.url,
+                        method: config.method,
+                        body: config.data,
+                        headers: config.headers,
+                        timestamp: Date.now()
+                    });
+                    
+                    window.dispatchEvent(new Event('offline-data-added'));
+
+                    return Promise.resolve({
+                        status: 200,
+                        data: { message: "Saved offline. Will sync when online.", offline: true }
+                    });
+                } catch (dbError) {
+                    console.error("Failed to save offline data", dbError);
+                }
+            }
+        }
+
         if (error.response?.status === 401) {
             localStorage.removeItem("token");
             localStorage.removeItem("userRole");

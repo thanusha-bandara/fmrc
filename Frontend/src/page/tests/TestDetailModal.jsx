@@ -127,6 +127,7 @@ export default function TestDetailModal({ test, role, userId, onClose, onSaved }
     setError('');
     try {
       await saveTestData(test.test_id, buildFormDataObject());
+      alert("Draft saved successfully!");
       finish();
     } catch (err) {
       setError(getErrorMessage(err, 'Could not save test data.'));
@@ -141,6 +142,7 @@ export default function TestDetailModal({ test, role, userId, onClose, onSaved }
     try {
       await saveTestData(test.test_id, buildFormDataObject());
       await submitTest(test.test_id);
+      alert("Test submitted successfully!");
       finish();
     } catch (err) {
       setError(getErrorMessage(err, 'Could not submit test.'));
