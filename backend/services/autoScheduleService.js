@@ -4,6 +4,7 @@ import { runGA } from './geneticAlgorithmService.js';
 import { getRainyDates } from './weatherService.js';
 import { getAvailableFields, getCurrentSeason } from '../models/field.js';
 import { getTechnicalAssistants, getTALeaves } from '../models/user.js';
+import { getActiveLabourCount, getLabourLeaves } from '../models/labour.js';
 import { getCustomHolidays } from '../models/calendar.js';
 
 // Shared by both the manual "Generate Schedule" endpoint and the automatic
@@ -42,7 +43,8 @@ export const runAutomaticScheduling = async () => {
                 tr.is_field_test,
                 tr.requires_water,
                 tr.required_season,
-                tr.technical_assistant_id, 
+                tr.required_labour_count,
+                tr.technical_assistant_id,
                 m.registration_date as registrationDate,
                 m.machine_name,
                 s.schedule_id
@@ -66,24 +68,27 @@ export const runAutomaticScheduling = async () => {
                 isFieldTest: Boolean(t.is_field_test),
                 requiredSeason: t.required_season || "Any",
                 requiresWater: Boolean(t.requires_water),
-                requiredTA: t.technical_assistant_id || null
+                requiredTA: t.technical_assistant_id || null,
+                requiredLabourCount: t.required_labour_count ?? 0
             };
         });
 
         // 2. Fetch constraints
         const currentSeason = await getCurrentSeason();
         const filteredTests = filterAndSortTests(pendingTests, currentSeason);
-        
+
         const fields = await getAvailableFields();
         const tas = await getTechnicalAssistants();
         const taLeaves = await getTALeaves();
+        const totalLabourCount = await getActiveLabourCount();
+        const labourLeaves = await getLabourLeaves();
         const rainyDates = await getRainyDates();
-        
+
         // Fetch all holidays from database (public holidays are synced here too)
         const allHolidays = await getCustomHolidays();
 
         // 3. Run Genetic Algorithm
-        const bestSchedule = runGA(filteredTests, rainyDates, fields, tas, allHolidays, taLeaves);
+        const bestSchedule = runGA(filteredTests, rainyDates, fields, tas, allHolidays, taLeaves, totalLabourCount, labourLeaves);
 
         // 4. Save to Database (replaces old 'Scheduled'/'Rescheduled' rows for these tests)
         const testIds = tests.map(t => t.test_id);

@@ -4,9 +4,13 @@ const timeSlots = ["Full Day"];
 
 const createRandomSchedule = (validTests, fields, tas, holidays = []) => {
     let schedule = {};
-    
-    const requiredDays = validTests.length;
-    
+
+    // Give the GA more candidate days than there are tests, otherwise (e.g. with a
+    // single pending test) there is only one possible day in the whole search space
+    // and no amount of fitness penalty (TA leave, labour shortage, weather) can ever
+    // move a test to a better day, because no other day exists to move it to.
+    const requiredDays = validTests.length + 10;
+
     let startDate = new Date();
     const days = [];
     
@@ -112,6 +116,12 @@ const crossoverSchedules = (sched1, sched2) => {
         childSchedule[day] = [];
     });
 
+    // Flattened once so lookups below match strictly by test_id and stop at the
+    // first hit (the previous per-day loop kept overwriting its result with
+    // whatever the *last* day in sched2 held, even when it wasn't the same test,
+    // because the id fallback below used to compare two `undefined`s as equal).
+    const sched2AssignmentsFlat = Object.values(sched2).flat();
+
     Object.keys(sched1).forEach(day => {
         sched1[day].forEach(assignment => {
             const takeFromSched1 = Math.random() > 0.5;
@@ -119,15 +129,9 @@ const crossoverSchedules = (sched1, sched2) => {
             if (takeFromSched1) {
                 childSchedule[day].push(JSON.parse(JSON.stringify(assignment)));
             } else {
-                // Find this test in sched2
-                let foundAssignment = null;
-                Object.keys(sched2).forEach(d2 => {
-                    const found = sched2[d2].find(a => a.test.test_id === assignment.test.test_id || a.test.id === assignment.test.id);
-                    if (found) {
-                        foundAssignment = found;
-                    }
-                });
-                
+                // Find this same test in sched2
+                const foundAssignment = sched2AssignmentsFlat.find(a => a.test.test_id === assignment.test.test_id);
+
                 if (foundAssignment) {
                     const targetDay = foundAssignment.scheduled_date;
                     if (!childSchedule[targetDay]) {
@@ -141,10 +145,12 @@ const crossoverSchedules = (sched1, sched2) => {
         });
     });
 
-    return childSchedule;
+    // The geneticalgorithm package calls crossoverFunction(a, b)[0] to get the child,
+    // so this must return an array, not the schedule object directly.
+    return [childSchedule];
 };
 
-export const runGA = (validTests, rainyDates = [], fields = [], tas = [], holidays = [], taLeaves = []) => {
+export const runGA = (validTests, rainyDates = [], fields = [], tas = [], holidays = [], taLeaves = [], totalLabourCount = 0, labourLeaves = []) => {
     if (validTests.length === 0) return {};
 
     let initialPopulation = [];
@@ -161,10 +167,21 @@ export const runGA = (validTests, rainyDates = [], fields = [], tas = [], holida
         Object.entries(schedule).forEach(([dateStr, assignments]) => {
             // ONLY ONE TEST PER DAY CONSTRAINT
             if (assignments.length > 1) {
-                score -= 5000 * (assignments.length - 1); 
+                score -= 5000 * (assignments.length - 1);
             }
 
+            // LABOUR HEADCOUNT CONSTRAINT: how many labourers are actually free this day
+            const labourOnLeaveToday = labourLeaves.filter(l => l.leave_date === dateStr).length;
+            const availableLabourToday = Math.max(0, totalLabourCount - labourOnLeaveToday);
+
             assignments.forEach(assignment => {
+                // Not enough labourers free this day for this test's crew requirement.
+                // Scaled like the one-test-per-day rule so the GA reliably steers away from it.
+                const requiredLabour = assignment.test.requiredLabourCount || 0;
+                if (requiredLabour > availableLabourToday) {
+                    score -= 5000 * (requiredLabour - availableLabourToday);
+                }
+
                 // Weather check optimization
                 if (assignment.test.isFieldTest) {
                     if (rainyDates.includes(dateStr)) {
@@ -224,10 +241,16 @@ export const runGA = (validTests, rainyDates = [], fields = [], tas = [], holida
 
     const config = {
         population: initialPopulation,
-        fitness: calculateFitness,
-        mutate: (sched) => mutateSchedule(sched, fields, tas),
-        crossover: crossoverSchedules,
-        optimization: 'maximum'
+        // NOTE: the `geneticalgorithm` package's actual option names are
+        // fitnessFunction/mutationFunction/crossoverFunction (there is no
+        // `optimization` option — it always maximizes via a.score >= b.score).
+        // The old keys here (fitness/mutate/crossover/optimization) don't match
+        // that API, so the library silently fell back to its no-op defaults
+        // (fitness always 0, mutation/crossover as identity) and every
+        // constraint below was never actually applied.
+        fitnessFunction: calculateFitness,
+        mutationFunction: (sched) => mutateSchedule(sched, fields, tas),
+        crossoverFunction: crossoverSchedules
     };
 
     const ga = GeneticAlgorithm(config);

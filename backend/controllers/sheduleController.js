@@ -3,6 +3,7 @@ import { runGA } from '../services/geneticAlgorithmService.js';
 import { getRainyDates } from '../services/weatherService.js';
 import { getAvailableFields, getCurrentSeason } from '../models/field.js';
 import { getTechnicalAssistants, getTALeaves } from '../models/user.js';
+import { getActiveLabourCount, getLabourLeaves } from '../models/labour.js';
 import { getPendingTests } from '../models/testRecord.js';
 import { getCustomHolidays } from '../models/calendar.js';
 import { persistSchedule } from '../services/autoScheduleService.js';
@@ -20,6 +21,8 @@ export const generateSchedule = async (req, res) => {
         const fields = await getAvailableFields();
         const tas = await getTechnicalAssistants();
         const taLeaves = await getTALeaves();
+        const totalLabourCount = await getActiveLabourCount();
+        const labourLeaves = await getLabourLeaves();
 
         // Fetch rainy dates from OpenWeatherMap API
         const rainyDates = await getRainyDates();
@@ -27,7 +30,7 @@ export const generateSchedule = async (req, res) => {
         // Fetch holidays from database
         const allHolidays = await getCustomHolidays();
 
-        const finalSchedule = runGA(filteredTests, rainyDates, fields, tas, allHolidays, taLeaves);
+        const finalSchedule = runGA(filteredTests, rainyDates, fields, tas, allHolidays, taLeaves, totalLabourCount, labourLeaves);
 
         // Persist so GET /api/schedule reflects the newly generated calendar
         const testIds = filteredTests.map(t => t.test_id);

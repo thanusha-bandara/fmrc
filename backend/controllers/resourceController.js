@@ -1,5 +1,10 @@
 import { getAllFields, getFieldById, createField, updateField, deleteField } from "../models/field.js";
 import { setStaffAvailability, listStaffAvailability, deleteStaffAvailability } from "../models/staffAvailability.js";
+import {
+    setLabourAvailability as setLabourAvailabilityRecord,
+    listLabourAvailability as listLabourAvailabilityRecords,
+    deleteLabourAvailability
+} from "../models/labourAvailability.js";
 import { runAutomaticScheduling } from "../services/autoScheduleService.js";
 
 // ---- Field availability ----
@@ -85,6 +90,46 @@ export const setAvailability = async (req, res) => {
 export const removeAvailability = async (req, res) => {
     try {
         const deleted = await deleteStaffAvailability(req.params.id);
+        if (!deleted) {
+            return res.status(404).json({ success: false, message: "Availability record not found." });
+        }
+        res.status(200).json({ success: true, message: "Availability record removed." });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Error removing availability record.", error: error.message });
+    }
+};
+
+// ---- Labour availability ----
+
+export const listLabourAvailability = async (req, res) => {
+    try {
+        const { labourId, from, to } = req.query;
+        const records = await listLabourAvailabilityRecords({ labourId, from, to });
+        res.status(200).json({ success: true, records });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Error fetching labour availability.", error: error.message });
+    }
+};
+
+// Admin / Technical Assistant: mark a labourer on leave / back available for a date.
+// Labour headcount feeds the scheduler's day-feasibility check, so trigger a reschedule.
+export const setLabourAvailability = async (req, res) => {
+    try {
+        const { labourId, date, isOnLeave, reason } = req.body;
+        if (!labourId || !date || isOnLeave === undefined) {
+            return res.status(400).json({ success: false, message: "labourId, date and isOnLeave are required." });
+        }
+        const record = await setLabourAvailabilityRecord(labourId, date, isOnLeave, reason);
+        runAutomaticScheduling();
+        res.status(200).json({ success: true, message: "Availability updated. Rescheduling triggered.", record });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Error setting labour availability.", error: error.message });
+    }
+};
+
+export const removeLabourAvailability = async (req, res) => {
+    try {
+        const deleted = await deleteLabourAvailability(req.params.id);
         if (!deleted) {
             return res.status(404).json({ success: false, message: "Availability record not found." });
         }

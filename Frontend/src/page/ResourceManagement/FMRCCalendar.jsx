@@ -81,9 +81,15 @@ export default function FMRCCalendar() {
           <div className="flex justify-between items-center mb-4 shrink-0">
             <button onClick={() => setMonthOffset((m) => m - 1)} className="cursor-pointer border border-gray-300 rounded-md px-2.5 py-1 bg-white hover:bg-gray-50">◀</button>
             <h3 className="m-0 text-lg font-bold text-gray-800">{monthLabel}</h3>
-            <div className="flex items-center gap-1.5">
-              <span className="w-3 h-3 bg-red-600 inline-block rounded-sm"></span>
-              <span className="text-sm text-gray-600 font-medium">Holidays</span>
+            <div className="flex items-center gap-3">
+              <span className="flex items-center gap-1.5">
+                <span className="w-3 h-3 bg-red-600 inline-block rounded-sm"></span>
+                <span className="text-sm text-gray-600 font-medium">Holidays</span>
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="w-3 h-3 bg-white border-2 border-blue-500 inline-block rounded-sm"></span>
+                <span className="text-sm text-gray-600 font-medium">Today</span>
+              </span>
             </div>
             <button onClick={() => setMonthOffset((m) => m + 1)} className="cursor-pointer border border-gray-300 rounded-md px-2.5 py-1 bg-white hover:bg-gray-50">▶</button>
           </div>
@@ -96,11 +102,14 @@ export default function FMRCCalendar() {
             {loading ? (
               <div className="col-span-7 flex items-center justify-center text-gray-400">Loading...</div>
             ) : cells.map((cell, i) => {
-              const info = cell.currentMonth ? holidayByDate[toISODate(cell.date)] : null;
+              const cellISO = cell.currentMonth ? toISODate(cell.date) : null;
+              const info = cellISO ? holidayByDate[cellISO] : null;
+              const isToday = cellISO === toISODate(new Date());
               let cellClasses = "flex items-center justify-center rounded-lg font-medium text-base ";
               if (!cell.currentMonth) cellClasses += "bg-white text-gray-300";
               else if (info) cellClasses += "bg-red-600 text-white cursor-pointer hover:bg-red-700 transition-colors shadow-sm";
               else cellClasses += "bg-white text-gray-800 cursor-pointer hover:bg-gray-100 transition-colors border border-transparent hover:border-gray-200";
+              if (isToday) cellClasses += " ring-2 ring-blue-500 ring-offset-1";
 
               return (
                 <div key={i} onClick={() => cell.currentMonth && openDay(cell)} title={info?.reason || ""} className={cellClasses}>
