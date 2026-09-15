@@ -1,12 +1,12 @@
 import { useNavigate } from "react-router-dom";
 import ResourceTabs from "./ResourceTabs";
-import FieldsTable from "./FieldsTable";
+import FieldCalendar from "./FieldCalendar";
 
 export default function FieldAvailability() {
   const navigate = useNavigate();
 
   return (
-    <div className="p-5 md:p-8 h-full flex flex-col box-border">
+    <div className="p-5 md:p-8 h-full flex flex-col box-border bg-gray-50/30 overflow-auto">
       <button onClick={() => navigate("/resource-management")} className="mb-3 cursor-pointer border border-gray-300 bg-white rounded-md px-3.5 py-1.5 w-fit text-sm hover:bg-gray-50 transition-colors">
         ← Back
       </button>
@@ -14,7 +14,7 @@ export default function FieldAvailability() {
 
       <ResourceTabs active="Field Availability" />
 
-      <FieldsTable emphasis="availability" />
+      <FieldCalendar emphasis="availability" />
     </div>
   );
 }

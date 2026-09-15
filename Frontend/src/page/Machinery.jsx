@@ -458,8 +458,8 @@ export default function Machinery() {
                     <select value={testForm.required_season} onChange={(e) => setTestForm({ ...testForm, required_season: e.target.value })}
                       className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20">
                       <option value="Any">Any Season</option>
-                      <option value="Yala">Yala</option>
-                      <option value="Maha">Maha</option>
+                      <option value="Ploughing">Ploughing Season</option>
+                      <option value="Harvesting">Harvesting Season</option>
                     </select>
                   </div>
                 </>
