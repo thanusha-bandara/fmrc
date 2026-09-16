@@ -5,6 +5,7 @@ const cards = [
   { title: "FMRC Calendar", Icon: CalendarDays, color: "#6C63FF", bg: "#EEEDFF", path: "/resource-management/fmrc-calendar" },
   { title: "Water Schedule", Icon: Droplet, color: "#2196F3", bg: "#E3F2FD", path: "/resource-management/water-schedule" },
   { title: "Weather Conditions", Icon: CloudSun, color: "#FB8C00", bg: "#FFF3E0", path: "/resource-management/weather-conditions" },
+  { title: "Current Season", Icon: Wheat, color: "#F44336", bg: "#FFEBEE", path: "/resource-management/field-seasons" },
   { title: "Field Availability", Icon: Wheat, color: "#4CAF50", bg: "#E8F5E9", path: "/resource-management/field-availability" },
   { title: "Human Availability", Icon: Users, color: "#7B1FA2", bg: "#F3E5F5", path: "/resource-management/human-availability" },
 ];

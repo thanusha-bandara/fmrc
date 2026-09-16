@@ -1,57 +1,63 @@
 import db from '../config/db.js';
 
-export const getLabours = async () => {
-    const [rows] = await db.query(`SELECT labour_id, full_name FROM Labours WHERE is_active = TRUE`);
-    return rows;
-};
-
 export const getAllLabours = async () => {
-    const [rows] = await db.query(`SELECT labour_id, full_name, phone, is_active, created_at FROM Labours ORDER BY created_at DESC`);
+    const [rows] = await db.query(`SELECT * FROM labours ORDER BY name ASC`);
     return rows;
 };
 
-export const findLabourById = async (labourId) => {
-    const [rows] = await db.query(`SELECT labour_id, full_name, phone, is_active, created_at FROM Labours WHERE labour_id = ?`, [labourId]);
+export const createLabour = async (name) => {
+    const [result] = await db.query(`INSERT INTO labours (name) VALUES (?)`, [name]);
+    return { labour_id: result.insertId, name, is_active: 1 };
+};
+
+export const updateLabour = async (id, name, isActive) => {
+    await db.query(`UPDATE labours SET name = ?, is_active = ? WHERE labour_id = ?`, [name, isActive, id]);
+};
+
+export const deleteLabour = async (id) => {
+    await db.query(`DELETE FROM labours WHERE labour_id = ?`, [id]);
+};
+
+// Labour Availability
+export const setLabourAvailability = async (labourId, date, isOnLeave, reason) => {
+    await db.query(
+        `INSERT INTO labour_availability (labour_id, date, is_on_leave, reason)
+         VALUES (?, ?, ?, ?)
+         ON DUPLICATE KEY UPDATE is_on_leave = VALUES(is_on_leave), reason = VALUES(reason)`,
+        [labourId, date, isOnLeave, reason || null]
+    );
+
+    const [rows] = await db.query(
+        `SELECT * FROM labour_availability WHERE labour_id = ? AND date = ?`,
+        [labourId, date]
+    );
     return rows[0] || null;
 };
 
-export const createLabour = async ({ full_name, phone }) => {
-    const [result] = await db.query(
-        `INSERT INTO Labours (full_name, phone, is_active) VALUES (?, ?, TRUE)`,
-        [full_name, phone || null]
-    );
-    return findLabourById(result.insertId);
-};
+export const listLabourAvailability = async ({ labourId, from, to } = {}) => {
+    const conditions = [];
+    const params = [];
 
-export const updateLabour = async (labourId, { full_name, phone, is_active }) => {
-    await db.query(
-        `UPDATE Labours SET
-            full_name = COALESCE(?, full_name),
-            phone = COALESCE(?, phone),
-            is_active = COALESCE(?, is_active)
-         WHERE labour_id = ?`,
-        [full_name ?? null, phone ?? null, is_active ?? null, labourId]
-    );
-    return findLabourById(labourId);
-};
+    if (labourId) {
+        conditions.push("la.labour_id = ?");
+        params.push(labourId);
+    }
+    if (from) {
+        conditions.push("la.date >= ?");
+        params.push(from);
+    }
+    if (to) {
+        conditions.push("la.date <= ?");
+        params.push(to);
+    }
 
-export const deleteLabour = async (labourId) => {
-    const [result] = await db.query(`DELETE FROM Labours WHERE labour_id = ?`, [labourId]);
-    return result.affectedRows > 0;
-};
-
-export const getLabourLeaves = async () => {
-    const [leaves] = await db.query(`
-        SELECT labour_id, DATE_FORMAT(date, '%Y-%m-%d') as leave_date
-        FROM Labour_Availability
-        WHERE is_on_leave = TRUE
-    `);
-    return leaves;
-};
-
-// Used by the scheduler to know the total headcount pool available on a given day
-// (total active labourers minus those on leave that day) — no identity tracking needed.
-export const getActiveLabourCount = async () => {
-    const [rows] = await db.query(`SELECT COUNT(*) AS count FROM Labours WHERE is_active = TRUE`);
-    return rows[0].count;
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    const [rows] = await db.query(`
+        SELECT la.*, l.name as full_name
+        FROM labour_availability la
+        JOIN labours l ON la.labour_id = l.labour_id
+        ${where}
+        ORDER BY la.date DESC
+    `, params);
+    return rows;
 };

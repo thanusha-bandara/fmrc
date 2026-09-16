@@ -43,15 +43,10 @@ const createRandomSchedule = (validTests, fields, tas, holidays = []) => {
         const randomTimeSlot = timeSlots[Math.floor(Math.random() * timeSlots.length)];
         const randomTA = tas.length > 0 ? tas[Math.floor(Math.random() * tas.length)] : null;
         
-        let randomField = null;
-        if (test.isFieldTest && fields.length > 0) {
-            randomField = fields[Math.floor(Math.random() * fields.length)];
-        }
-        
         schedule[assignedDay].push({
             test,
             time_slot: randomTimeSlot,
-            field_id: randomField ? randomField.field_id : null,
+            field_id: null,
             assigned_ta_id: randomTA ? randomTA.user_id : null,
             scheduled_date: assignedDay
         });
@@ -92,11 +87,7 @@ const mutateSchedule = (schedule, fields, tas) => {
 
         testAssignment.time_slot = timeSlots[Math.floor(Math.random() * timeSlots.length)];
         
-        if (testAssignment.test.isFieldTest && fields && fields.length > 0) {
-            testAssignment.field_id = fields[Math.floor(Math.random() * fields.length)].field_id;
-        } else {
-            testAssignment.field_id = null;
-        }
+        testAssignment.field_id = null;
         
         if (tas && tas.length > 0) {
             testAssignment.assigned_ta_id = tas[Math.floor(Math.random() * tas.length)].user_id;
@@ -150,7 +141,7 @@ const crossoverSchedules = (sched1, sched2) => {
     return [childSchedule];
 };
 
-export const runGA = (validTests, rainyDates = [], fields = [], tas = [], holidays = [], taLeaves = [], totalLabourCount = 0, labourLeaves = []) => {
+export const runGA = (validTests, rainyDates = [], fields = [], tas = [], holidays = [], taLeaves = [], farmDailyStatus = {}) => {
     if (validTests.length === 0) return {};
 
     let initialPopulation = [];
@@ -217,19 +208,17 @@ export const runGA = (validTests, rainyDates = [], fields = [], tas = [], holida
                     }
                 }
 
-                // Check Field double booking & Water availability
-                if (assignment.field_id) {
-                    const fieldKey = `${assignment.field_id}-${assignment.time_slot}`;
-                    if (fieldAssignments[fieldKey]) {
-                        score -= 100; 
-                    }
-                    fieldAssignments[fieldKey] = true;
-                    
-                    // Water check
-                    if (assignment.test.requiresWater) {
-                        const assignedField = fields.find(f => f.field_id === assignment.field_id);
-                        if (assignedField && !assignedField.water_available) {
-                            score -= 100; 
+                // Daily Global Farm Constraints for Field Tests
+                if (assignment.test.isFieldTest) {
+                    const dailyStatus = farmDailyStatus[dateStr];
+                    if (dailyStatus) {
+                        // Field unavailable today
+                        if (!dailyStatus.is_field_available) {
+                            score -= 500;
+                        }
+                        // Water required but unavailable today
+                        if (assignment.test.requiresWater && !dailyStatus.is_water_available) {
+                            score -= 500;
                         }
                     }
                 }

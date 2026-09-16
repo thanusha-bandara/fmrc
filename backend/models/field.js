@@ -1,58 +1,56 @@
 import db from '../config/db.js';
 
-export const getAvailableFields = async () => {
-    const [fields] = await db.query(`SELECT field_id, field_name, water_available, is_land_preparation_period FROM Field_Status WHERE is_available = TRUE`);
-    return fields;
-};
+// field.js now handles farm daily status and farm seasons
 
 export const getCurrentSeason = async () => {
-    const [rows] = await db.query(`SELECT season FROM Field_Status WHERE is_available = TRUE LIMIT 1`);
-    // Fallback to 'Any' if no specific season is set in the fields
-    return rows.length > 0 ? rows[0].season : 'Any';
+    const [rows] = await db.query(
+        `SELECT season_type FROM farm_seasons 
+         WHERE CURDATE() BETWEEN start_date AND end_date 
+         ORDER BY start_date DESC LIMIT 1`
+    );
+    return rows.length > 0 ? rows[0].season_type : 'Any';
 };
 
-export const getAllFields = async () => {
-    const [rows] = await db.query(`SELECT * FROM Field_Status ORDER BY field_name ASC`);
+// --- Global Farm Daily Status ---
+export const listFarmDailyStatus = async ({ from, to }) => {
+    let q = `SELECT date, is_field_available, is_water_available FROM farm_daily_status`;
+    let params = [];
+    if (from || to) {
+        q += ' WHERE 1=1';
+        if (from) { q += ' AND date >= ?'; params.push(from); }
+        if (to) { q += ' AND date <= ?'; params.push(to); }
+    }
+    const [rows] = await db.query(q, params);
     return rows;
 };
 
-export const getFieldById = async (fieldId) => {
-    const [rows] = await db.query(`SELECT * FROM Field_Status WHERE field_id = ?`, [fieldId]);
-    return rows[0] || null;
-};
-
-export const createField = async ({ field_name, is_available, water_available, season, is_land_preparation_period }) => {
+export const setFarmDailyStatus = async (date, isFieldAvailable, isWaterAvailable) => {
     const [result] = await db.query(
-        `INSERT INTO Field_Status (field_name, is_available, water_available, season, is_land_preparation_period)
-         VALUES (?, ?, ?, ?, ?)`,
-        [field_name, is_available ?? true, water_available ?? false, season || 'Off-Season', is_land_preparation_period ?? false]
+        `INSERT INTO farm_daily_status (date, is_field_available, is_water_available)
+         VALUES (?, ?, ?)
+         ON DUPLICATE KEY UPDATE 
+         is_field_available = VALUES(is_field_available), is_water_available = VALUES(is_water_available)`,
+        [date, isFieldAvailable, isWaterAvailable]
     );
-    return getFieldById(result.insertId);
+    return result;
 };
 
-// Used by Technical Assistants to keep field/water availability current for the scheduler.
-export const updateField = async (fieldId, { field_name, is_available, water_available, season, is_land_preparation_period }) => {
-    await db.query(
-        `UPDATE Field_Status SET
-            field_name = COALESCE(?, field_name),
-            is_available = COALESCE(?, is_available),
-            water_available = COALESCE(?, water_available),
-            season = COALESCE(?, season),
-            is_land_preparation_period = COALESCE(?, is_land_preparation_period)
-         WHERE field_id = ?`,
-        [
-            field_name ?? null,
-            is_available ?? null,
-            water_available ?? null,
-            season ?? null,
-            is_land_preparation_period ?? null,
-            fieldId
-        ]
-    );
-    return getFieldById(fieldId);
+// --- Farm Seasons ---
+export const getFarmSeasons = async () => {
+    const [rows] = await db.query(`SELECT id, season_type, start_date, end_date FROM farm_seasons ORDER BY start_date DESC`);
+    return rows;
 };
 
-export const deleteField = async (fieldId) => {
-    const [result] = await db.query(`DELETE FROM Field_Status WHERE field_id = ?`, [fieldId]);
+export const setFarmSeason = async (seasonType, startDate, endDate) => {
+    const [result] = await db.query(
+        `INSERT INTO farm_seasons (season_type, start_date, end_date) VALUES (?, ?, ?)`,
+        [seasonType, startDate, endDate]
+    );
+    return result.insertId;
+};
+
+export const deleteFarmSeason = async (id) => {
+    const [result] = await db.query(`DELETE FROM farm_seasons WHERE id = ?`, [id]);
     return result.affectedRows > 0;
 };
+

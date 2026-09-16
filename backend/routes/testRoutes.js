@@ -7,8 +7,7 @@ import {
     submitTest,
     reviewTest,
     decideTest,
-    removeTest,
-    getEstimate
+    removeTest
 } from "../controllers/testController.js";
 import { authenticate, authorize } from "../middlware/auth.js";
 
@@ -18,7 +17,7 @@ router.use(authenticate);
 
 router.get("/", getTests);
 router.get("/:id", getTest);
-router.get("/:id/estimate", getEstimate);
+
 
 router.post("/", authorize("Admin", "Mechanical_Engineer"), createTest);
 router.delete("/:id", authorize("Admin"), removeTest);

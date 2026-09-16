@@ -14,7 +14,8 @@ import reportRoutes from "./routes/reportRoutes.js";
 import resourceRoutes from "./routes/resourceRoutes.js";
 import labourRoutes from "./routes/labourRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
-import estimationRoutes from "./routes/estimationRoutes.js";
+
+import labourRouter from "./routes/labourRouter.js";
 
 dotenv.config();
 
@@ -38,7 +39,8 @@ app.use('/api/schedule', scheduleRoutes);
 app.use('/api/weather', weatherRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/dashboard', dashboardRoutes);
-app.use('/api/estimate', estimationRoutes);
+
+app.use('/api/labours', labourRouter);
 
 // Fallback error handler so unexpected exceptions return JSON instead of crashing silently.
 app.use((err, req, res, next) => {

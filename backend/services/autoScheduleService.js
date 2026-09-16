@@ -2,7 +2,7 @@ import db from '../config/db.js';
 import { filterAndSortTests } from './ruleBasedService.js';
 import { runGA } from './geneticAlgorithmService.js';
 import { getRainyDates } from './weatherService.js';
-import { getAvailableFields, getCurrentSeason } from '../models/field.js';
+import { getCurrentSeason } from '../models/field.js';
 import { getTechnicalAssistants, getTALeaves } from '../models/user.js';
 import { getActiveLabourCount, getLabourLeaves } from '../models/labour.js';
 import { getCustomHolidays } from '../models/calendar.js';
@@ -18,11 +18,10 @@ export const persistSchedule = async (testIds, bestSchedule) => {
     for (const [dateStr, assignments] of Object.entries(bestSchedule)) {
         for (const assignment of assignments) {
             await db.query(`
-                INSERT INTO Schedules (test_id, field_id, assigned_ta_id, scheduled_date, time_slot, status)
-                VALUES (?, ?, ?, ?, ?, 'Scheduled')
+                INSERT INTO Schedules (test_id, assigned_ta_id, scheduled_date, time_slot, status)
+                VALUES (?, ?, ?, ?, 'Scheduled')
             `, [
                 assignment.test.test_id,
-                assignment.field_id,
                 assignment.assigned_ta_id,
                 assignment.scheduled_date,
                 assignment.time_slot
@@ -76,8 +75,7 @@ export const runAutomaticScheduling = async () => {
         // 2. Fetch constraints
         const currentSeason = await getCurrentSeason();
         const filteredTests = filterAndSortTests(pendingTests, currentSeason);
-
-        const fields = await getAvailableFields();
+        
         const tas = await getTechnicalAssistants();
         const taLeaves = await getTALeaves();
         const totalLabourCount = await getActiveLabourCount();
@@ -87,8 +85,16 @@ export const runAutomaticScheduling = async () => {
         // Fetch all holidays from database (public holidays are synced here too)
         const allHolidays = await getCustomHolidays();
 
+        // Fetch daily farm statuses (field closed/water available overrides)
+        const farmDailyStatusArray = await db.query(`SELECT date, is_field_available, is_water_available FROM farm_daily_status`);
+        const farmDailyStatus = farmDailyStatusArray[0].reduce((acc, curr) => {
+            const dateStr = typeof curr.date === 'string' ? curr.date.split("T")[0] : curr.date.toISOString().split("T")[0];
+            acc[dateStr] = curr;
+            return acc;
+        }, {});
+
         // 3. Run Genetic Algorithm
-        const bestSchedule = runGA(filteredTests, rainyDates, fields, tas, allHolidays, taLeaves, totalLabourCount, labourLeaves);
+        const bestSchedule = runGA(filteredTests, rainyDates, [], tas, allHolidays, taLeaves, farmDailyStatus);
 
         // 4. Save to Database (replaces old 'Scheduled'/'Rescheduled' rows for these tests)
         const testIds = tests.map(t => t.test_id);

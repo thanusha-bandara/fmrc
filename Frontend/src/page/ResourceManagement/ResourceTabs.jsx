@@ -5,6 +5,7 @@ const TAB_ROUTES = {
   "Water Schedule": "/resource-management/water-schedule",
   "Weather Conditions": "/resource-management/weather-conditions",
   "Field Availability": "/resource-management/field-availability",
+  "Current Season": "/resource-management/field-seasons",
   "Human Availability": "/resource-management/human-availability"
 };
 

@@ -6,6 +6,21 @@ export const addField = (payload) => apiClient.post("/resources/fields", payload
 export const updateField = (id, payload) => apiClient.put(`/resources/fields/${id}`, payload).then((r) => r.data.field);
 export const deleteField = (id) => apiClient.delete(`/resources/fields/${id}`).then((r) => r.data);
 
+// Farm Daily Status
+export const listFarmDailyStatus = (params = {}) => 
+    apiClient.get("/resources/farm-daily-status", { params }).then((r) => r.data.records);
+export const setFarmDailyStatus = (payload) => 
+    apiClient.post("/resources/farm-daily-status", payload).then((r) => r.data.record);
+
+// Farm Seasons
+export const listFarmSeasons = () => 
+    apiClient.get("/resources/farm-seasons").then((r) => r.data.records);
+export const setFarmSeason = (payload) => 
+    apiClient.post("/resources/farm-seasons", payload).then((r) => r.data.id);
+export const deleteFarmSeason = (id) => 
+    apiClient.delete(`/resources/farm-seasons/${id}`).then((r) => r.data);
+
+
 // Staff (human) availability
 export const listStaffAvailability = (params = {}) =>
     apiClient.get("/resources/staff-availability", { params }).then((r) => r.data.records);

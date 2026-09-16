@@ -1,4 +1,4 @@
-import { getAllFields, getFieldById, createField, updateField, deleteField } from "../models/field.js";
+import { listFarmDailyStatus, setFarmDailyStatus, getFarmSeasons, setFarmSeason, deleteFarmSeason } from "../models/field.js";
 import { setStaffAvailability, listStaffAvailability, deleteStaffAvailability } from "../models/staffAvailability.js";
 import {
     setLabourAvailability as setLabourAvailabilityRecord,
@@ -7,55 +7,65 @@ import {
 } from "../models/labourAvailability.js";
 import { runAutomaticScheduling } from "../services/autoScheduleService.js";
 
-// ---- Field availability ----
+// ---- Farm Global Availability & Seasons ----
 
-export const listFields = async (req, res) => {
+export const listFarmDailyStatusController = async (req, res) => {
     try {
-        const fields = await getAllFields();
-        res.status(200).json({ success: true, fields });
+        const { from, to } = req.query;
+        const records = await listFarmDailyStatus({ from, to });
+        res.status(200).json({ success: true, records });
     } catch (error) {
-        res.status(500).json({ success: false, message: "Error fetching fields.", error: error.message });
+        res.status(500).json({ success: false, message: "Error fetching farm daily status.", error: error.message });
     }
 };
 
-export const addField = async (req, res) => {
+export const setFarmDailyStatusController = async (req, res) => {
     try {
-        const { field_name } = req.body;
-        if (!field_name) {
-            return res.status(400).json({ success: false, message: "field_name is required." });
+        const { date, isFieldAvailable, isWaterAvailable } = req.body;
+        if (!date) {
+            return res.status(400).json({ success: false, message: "date is required." });
         }
-        const field = await createField(req.body);
-        res.status(201).json({ success: true, message: "Field added.", field });
-    } catch (error) {
-        res.status(500).json({ success: false, message: "Error adding field.", error: error.message });
-    }
-};
-
-// Technical Assistant: update field/water availability, season, or land-prep status.
-// Any change here can shift what the scheduler considers feasible, so we re-run it.
-export const editField = async (req, res) => {
-    try {
-        const existing = await getFieldById(req.params.id);
-        if (!existing) {
-            return res.status(404).json({ success: false, message: "Field not found." });
-        }
-        const field = await updateField(req.params.id, req.body);
+        const record = await setFarmDailyStatus(date, isFieldAvailable ?? true, isWaterAvailable ?? false);
         runAutomaticScheduling();
-        res.status(200).json({ success: true, message: "Field updated. Rescheduling triggered.", field });
+        res.status(200).json({ success: true, message: "Farm daily status updated.", record });
     } catch (error) {
-        res.status(500).json({ success: false, message: "Error updating field.", error: error.message });
+        res.status(500).json({ success: false, message: "Error setting farm daily status.", error: error.message });
     }
 };
 
-export const removeField = async (req, res) => {
+export const listFarmSeasonsController = async (req, res) => {
     try {
-        const deleted = await deleteField(req.params.id);
-        if (!deleted) {
-            return res.status(404).json({ success: false, message: "Field not found." });
-        }
-        res.status(200).json({ success: true, message: "Field removed." });
+        const records = await getFarmSeasons();
+        res.status(200).json({ success: true, records });
     } catch (error) {
-        res.status(500).json({ success: false, message: "Error removing field.", error: error.message });
+        res.status(500).json({ success: false, message: "Error fetching farm seasons.", error: error.message });
+    }
+};
+
+export const setFarmSeasonController = async (req, res) => {
+    try {
+        const { seasonType, startDate, endDate } = req.body;
+        if (!seasonType || !startDate || !endDate) {
+            return res.status(400).json({ success: false, message: "Missing required fields." });
+        }
+        const recordId = await setFarmSeason(seasonType, startDate, endDate);
+        runAutomaticScheduling();
+        res.status(200).json({ success: true, message: "Farm season added.", id: recordId });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Error setting farm season.", error: error.message });
+    }
+};
+
+export const deleteFarmSeasonController = async (req, res) => {
+    try {
+        const deleted = await deleteFarmSeason(req.params.id);
+        if (!deleted) {
+            return res.status(404).json({ success: false, message: "Season not found." });
+        }
+        runAutomaticScheduling();
+        res.status(200).json({ success: true, message: "Season removed." });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Error removing season.", error: error.message });
     }
 };
 
