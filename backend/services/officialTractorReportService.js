@@ -168,7 +168,10 @@ const findGroupTest = (allTests, groupKey) => allTests.find((t) => t.group_key =
 
 // ============================================================================================
 
-export const generateOfficialTractorReport = async (machineId) => {
+// Renders the PDF and writes it to disk, returning just the file name -- no DB write. Split
+// out from generateOfficialTractorReport so the download endpoint can re-render a report's PDF
+// (e.g. if the file went missing from disk) without touching its existing CE approval status.
+export const buildOfficialTractorReportPdf = async (machineId) => {
     const machine = await getMachineryById(machineId);
     if (!machine) throw new Error("Machine not found.");
 
@@ -544,7 +547,13 @@ export const generateOfficialTractorReport = async (machineId) => {
         writeStream.on("error", reject);
     });
 
-    const report = await createReport({
+    return fileName;
+};
+
+export const generateOfficialTractorReport = async (machineId) => {
+    const fileName = await buildOfficialTractorReportPdf(machineId);
+
+    return createReport({
         machine_id: machineId,
         test_id: null,
         report_type: "Official Tractor Certification Report",
@@ -552,6 +561,4 @@ export const generateOfficialTractorReport = async (machineId) => {
         approved_by: null,
         ce_status: "Pending"
     });
-
-    return report;
 };

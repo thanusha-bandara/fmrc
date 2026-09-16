@@ -4,6 +4,7 @@ import {
     listTestRecords,
     saveTestFormData,
     submitTestRecord,
+    saveReviewDraft,
     reviewTestRecord,
     decideTestRecord,
     deleteTestRecord
@@ -104,6 +105,26 @@ export const submitTest = async (req, res) => {
         res.status(200).json({ success: true, message: "Test submitted for Mechanical Engineer review.", test });
     } catch (error) {
         res.status(500).json({ success: false, message: "Error submitting test.", error: error.message });
+    }
+};
+
+// Mechanical Engineer: save review notes without finalizing -- test stays Submitted.
+export const saveReviewProgress = async (req, res) => {
+    try {
+        const { comments } = req.body;
+
+        const existing = await getTestRecordById(req.params.id);
+        if (!existing) {
+            return res.status(404).json({ success: false, message: "Test record not found." });
+        }
+        if (existing.status !== "Submitted") {
+            return res.status(409).json({ success: false, message: `Test must be Submitted to save review progress (currently ${existing.status}).` });
+        }
+
+        const test = await saveReviewDraft(req.params.id, req.user.user_id, comments);
+        res.status(200).json({ success: true, message: "Review progress saved.", test });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Error saving review progress.", error: error.message });
     }
 };
 

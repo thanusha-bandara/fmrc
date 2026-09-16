@@ -1,8 +1,9 @@
 import path from "path";
 import fs from "fs";
-import { getAllReports, getReportById, getReportByTestId, getPendingReports, updateReportDecision } from "../models/report.js";
+import { getAllReports, getReportById, getReportByTestId, getPendingReports, updateReportDecision, updateReportPdfPath } from "../models/report.js";
 import { approveAllTestsForMachine } from "../models/testRecord.js";
-import { REPORTS_DIR } from "../services/reportService.js";
+import { REPORTS_DIR, buildMachineReportPdf } from "../services/reportService.js";
+import { buildOfficialTractorReportPdf } from "../services/officialTractorReportService.js";
 
 export const listReports = async (req, res) => {
     try {
@@ -38,6 +39,9 @@ export const getReportForTest = async (req, res) => {
 };
 
 export const downloadReport = async (req, res) => {
+    // Never let a browser or service worker cache this response, success or error -- the file
+    // behind this same URL can be regenerated (see the self-heal below) without the URL changing.
+    res.set("Cache-Control", "no-store");
     try {
         const report = await getReportById(req.params.id);
         if (!report) {
@@ -52,7 +56,24 @@ export const downloadReport = async (req, res) => {
             return res.status(403).json({ success: false, message: "This report is pending Chief Engineer approval." });
         }
 
-        const filePath = path.join(REPORTS_DIR, report.pdf_file_path);
+        let filePath = path.join(REPORTS_DIR, report.pdf_file_path);
+
+        // The underlying test/machine data that produced this PDF still lives in the database
+        // even if the rendered file itself went missing from disk (moved, cleaned up, lost to
+        // sync/antivirus, etc.) -- so re-render it on the fly instead of just failing, without
+        // touching the report's existing CE approval/decision fields.
+        if (!fs.existsSync(filePath) && report.machine_id) {
+            try {
+                const newFileName = report.report_type === "Official Tractor Certification Report"
+                    ? await buildOfficialTractorReportPdf(report.machine_id)
+                    : (await buildMachineReportPdf(report.machine_id)).fileName;
+                await updateReportPdfPath(report.report_id, newFileName);
+                filePath = path.join(REPORTS_DIR, newFileName);
+            } catch (regenError) {
+                return res.status(410).json({ success: false, message: `The report PDF file is missing on the server and could not be regenerated: ${regenError.message}` });
+            }
+        }
+
         if (!fs.existsSync(filePath)) {
             return res.status(410).json({ success: false, message: "The report PDF file is missing on the server." });
         }

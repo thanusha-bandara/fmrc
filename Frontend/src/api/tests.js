@@ -13,6 +13,9 @@ export const saveTestData = (id, formData) =>
 
 export const submitTest = (id) => apiClient.post(`/tests/${id}/submit`).then((r) => r.data.test);
 
+export const saveReviewDraft = (id, comments) =>
+    apiClient.put(`/tests/${id}/review-draft`, { comments }).then((r) => r.data.test);
+
 export const reviewTest = (id, recommendation, comments) =>
     apiClient.post(`/tests/${id}/review`, { recommendation, comments }).then((r) => r.data.test);
 

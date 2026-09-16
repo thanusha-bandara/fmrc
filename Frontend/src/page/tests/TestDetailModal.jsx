@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
-import { saveTestData, submitTest, reviewTest, decideTest } from '../../api/tests';
+import { saveTestData, submitTest, saveReviewDraft, reviewTest, decideTest } from '../../api/tests';
 import { getErrorMessage } from '../../api/client';
 import { loadSchemaForTest } from './useTestSchema';
 import StructuredTestForm from './StructuredTestForm';
@@ -76,7 +76,6 @@ export default function TestDetailModal({ test, role, userId, onClose, onSaved }
   const [structuredData, setStructuredData] = useState(null);
   const [activeSchema, setActiveSchema] = useState(null);
   const [schemaLoading, setSchemaLoading] = useState(false);
-  const [recommendation, setRecommendation] = useState('Recommended');
   const [decision, setDecision] = useState('Approved');
   const [comments, setComments] = useState('');
   const [saving, setSaving] = useState(false);
@@ -84,9 +83,8 @@ export default function TestDetailModal({ test, role, userId, onClose, onSaved }
 
   useEffect(() => {
     let cancelled = false;
-    setRecommendation('Recommended');
     setDecision('Approved');
-    setComments('');
+    setComments(test.status === 'Submitted' ? (test.me_comments || '') : '');
     setError('');
 
     if (test.schema_id) {
@@ -151,7 +149,21 @@ export default function TestDetailModal({ test, role, userId, onClose, onSaved }
     }
   };
 
-  const handleReview = async () => {
+  const handleSaveReviewDraft = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      await saveReviewDraft(test.test_id, comments);
+      alert("Review progress saved as draft!");
+      finish();
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not save review progress.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleReview = async (recommendation) => {
     setSaving(true);
     setError('');
     try {
@@ -218,22 +230,19 @@ export default function TestDetailModal({ test, role, userId, onClose, onSaved }
           <div className="space-y-4">
             <p className="text-sm font-semibold text-gray-700">Recorded Test Parameters</p>
             {renderParams(true)}
-            <div>
-              <p className="text-sm font-semibold text-gray-700 mb-2">Recommendation</p>
-              <div className="flex gap-2.5">
-                <button onClick={() => setRecommendation('Recommended')} className={`flex-1 p-2.5 rounded-lg font-semibold text-sm transition-colors ${recommendation === 'Recommended' ? 'border-2 border-green-600 bg-green-50 text-green-700' : 'border border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
-                  Recommend
-                </button>
-                <button onClick={() => setRecommendation('Not Recommended')} className={`flex-1 p-2.5 rounded-lg font-semibold text-sm transition-colors ${recommendation === 'Not Recommended' ? 'border-2 border-red-600 bg-red-50 text-red-700' : 'border border-gray-300 text-gray-600 hover:bg-gray-50'}`}>
-                  Not Recommend
-                </button>
-              </div>
-            </div>
             <textarea value={comments} onChange={(e) => setComments(e.target.value)} rows={3} placeholder="Comments (optional)"
               className="w-full rounded-lg border border-gray-300 p-2.5 text-sm resize-none outline-none focus:ring-2 focus:ring-[#006B33]/20 focus:border-[#006B33]" />
-            <button onClick={handleReview} disabled={saving} className="w-full bg-[#006B33] text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-green-700 disabled:opacity-60">
-              {saving ? 'Submitting...' : 'Submit Review'}
-            </button>
+            <div className="flex gap-2.5 pt-1">
+              <button onClick={handleSaveReviewDraft} disabled={saving} className="flex-1 border border-gray-300 text-gray-700 py-2.5 rounded-lg font-semibold text-sm hover:bg-gray-50 disabled:opacity-60">
+                {saving ? 'Saving...' : 'Save as Draft'}
+              </button>
+              <button onClick={() => handleReview('Recommended')} disabled={saving} className="flex-1 bg-green-600 text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-green-700 disabled:opacity-60">
+                Recommend
+              </button>
+              <button onClick={() => handleReview('Not Recommended')} disabled={saving} className="flex-1 bg-red-600 text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-red-700 disabled:opacity-60">
+                Non Recommend
+              </button>
+            </div>
           </div>
         )}
 

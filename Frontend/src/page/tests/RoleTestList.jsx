@@ -38,9 +38,21 @@ function bucketize(tests, role, queueType, userId) {
 }
 
 const TITLES = {
-  TA: { assigned: 'New Assigned Tests', pending: 'Saved Drafts (In Progress)', completed: 'Submitted & Completed' },
-  ME: { assigned: 'Assigned Tests (from TA)', pending: 'Pending Tests (Awaiting CE Approval)', completed: 'Completed Tests' },
-  CE: { assigned: 'Recommended Tests', pending: 'Non-Recommended Tests', completed: 'Approved Tests' }
+  TA: {
+    assigned: { title: 'New Assigned Tests' },
+    pending: { title: 'Saved Drafts', subtitle: 'In Progress' },
+    completed: { title: 'Submitted & Completed' }
+  },
+  ME: {
+    assigned: { title: 'Assigned Tests', subtitle: 'from TA' },
+    pending: { title: 'Pending Tests' },
+    completed: { title: 'Completed Tests' }
+  },
+  CE: {
+    assigned: { title: 'Recommended Tests' },
+    pending: { title: 'Non-Recommended Tests' },
+    completed: { title: 'Approved Tests' }
+  }
 };
 
 const STATUS_STYLES = {
@@ -190,7 +202,14 @@ export default function RoleTestList({ role, queueType }) {
         >
           <ArrowLeft size={20} />
         </button>
-        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">{TITLES[role][queueType]}</h1>
+        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">
+          {TITLES[role][queueType].title}
+          {TITLES[role][queueType].subtitle && (
+            <span className="block text-sm font-semibold text-gray-500 mt-0.5">
+              {TITLES[role][queueType].subtitle}
+            </span>
+          )}
+        </h1>
       </div>
 
       {error && (
