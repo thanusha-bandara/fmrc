@@ -12,7 +12,6 @@ import testTemplateRoutes from "./routes/testTemplateRoutes.js";
 import testSchemaRoutes from "./routes/testSchemaRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
 import resourceRoutes from "./routes/resourceRoutes.js";
-import labourRoutes from "./routes/labourRoutes.js";
 import dashboardRoutes from "./routes/dashboardRoutes.js";
 
 import labourRouter from "./routes/labourRouter.js";
@@ -34,7 +33,6 @@ app.use('/api/test-templates', testTemplateRoutes);
 app.use('/api/test-schema', testSchemaRoutes);
 app.use('/api/reports', reportRoutes);
 app.use('/api/resources', resourceRoutes);
-app.use('/api/labours', labourRoutes);
 app.use('/api/schedule', scheduleRoutes);
 app.use('/api/weather', weatherRoutes);
 app.use('/api/calendar', calendarRoutes);

@@ -11,12 +11,10 @@ const createTables = async () => {
     await db.query(`DROP TABLE IF EXISTS Test_Records`);
     await db.query(`DROP TABLE IF EXISTS Test_Form_Schemas`);
     await db.query(`DROP TABLE IF EXISTS Staff_Availability`);
-    await db.query(`DROP TABLE IF EXISTS Labour_Availability`);
     await db.query(`DROP TABLE IF EXISTS Weather_Logs`);
     await db.query(`DROP TABLE IF EXISTS FMRC_Calendar`);
     await db.query(`DROP TABLE IF EXISTS Field_Status`);
     await db.query(`DROP TABLE IF EXISTS Machinery`);
-    await db.query(`DROP TABLE IF EXISTS Labours`);
     await db.query(`DROP TABLE IF EXISTS Users`);
 
     // Users Table
@@ -34,18 +32,6 @@ const createTables = async () => {
       ) ENGINE=InnoDB
     `);
     console.log("Users table created.");
-
-    // Labours Table (no login — a simple named roster tracked for availability only)
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS Labours (
-        labour_id INT AUTO_INCREMENT PRIMARY KEY,
-        full_name VARCHAR(150) NOT NULL,
-        phone VARCHAR(20),
-        is_active BOOLEAN DEFAULT TRUE,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      ) ENGINE=InnoDB
-    `);
-    console.log("Labours table created.");
 
     // FMRC Calendar Table (holidays / special non-working days)
     await db.query(`
@@ -111,22 +97,7 @@ const createTables = async () => {
     `);
     console.log("Staff_Availability table created.");
 
-        // 2b, labour availability
-
-    await db.query(`
-    CREATE TABLE IF NOT EXISTS Labour_Availability (
-    availability_id INT AUTO_INCREMENT PRIMARY KEY,
-    labour_id INT NOT NULL,
-    date DATE NOT NULL,
-    is_on_leave BOOLEAN DEFAULT FALSE,
-    reason VARCHAR(255) NULL,
-    UNIQUE KEY unique_labour_date (labour_id, date),
-    FOREIGN KEY (labour_id) REFERENCES Labours(labour_id) ON DELETE CASCADE
-    ) ENGINE=InnoDB;
-    `);
-    console.log("Labour_Availability table created.");
-
-    //3,weather logs
+    //3,weather logs 
 
     await db.query(`
     CREATE TABLE IF NOT EXISTS Weather_Logs (
@@ -166,7 +137,6 @@ const createTables = async () => {
         is_field_test BOOLEAN DEFAULT TRUE,
         requires_water BOOLEAN DEFAULT FALSE,
         required_season ENUM('Yala', 'Maha', 'Any') DEFAULT 'Any',
-        required_labour_count INT NOT NULL DEFAULT 0,
         technical_assistant_id INT,
         mechanical_engineer_id INT,
         chief_engineer_id INT,

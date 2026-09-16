@@ -192,10 +192,7 @@ export default function TestDetailModal({ test, role, userId, onClose, onSaved }
         <button onClick={onClose} className="absolute top-4 right-4 text-gray-400 hover:text-gray-700">
           <X size={20} />
         </button>
-        <h3 className="text-lg font-bold text-gray-900">
-          {test.machine_name}
-          {test.machine_model && <span className="font-normal text-gray-500"> ({test.machine_model})</span>}
-        </h3>
+        <h3 className="text-lg font-bold text-gray-900">{test.machine_name}</h3>
         <p className="text-sm text-gray-500 mb-4">{test.test_name}</p>
 
         {error && (

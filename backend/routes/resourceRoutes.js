@@ -20,9 +20,4 @@ router.get("/staff-availability", listAvailability);
 router.post("/staff-availability", authorize("Admin", "Technical_Assistant"), setAvailability);
 router.delete("/staff-availability/:id", authorize("Admin", "Technical_Assistant"), removeAvailability);
 
-// Labour availability
-router.get("/labour-availability", listLabourAvailability);
-router.post("/labour-availability", authorize("Admin", "Technical_Assistant"), setLabourAvailability);
-router.delete("/labour-availability/:id", authorize("Admin", "Technical_Assistant"), removeLabourAvailability);
-
 export default router;
