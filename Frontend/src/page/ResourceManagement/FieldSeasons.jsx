@@ -4,9 +4,11 @@ import { Plus, X, Calendar, Trash2 } from "lucide-react";
 import { listFarmSeasons, setFarmSeason, deleteFarmSeason } from "../../api/resources";
 import { getErrorMessage } from "../../api/client";
 import ResourceTabs from "./ResourceTabs";
+import { canEditResources } from "./calendarUtils";
 
 export default function FieldSeasons() {
   const navigate = useNavigate();
+  const canEdit = canEditResources();
   const [seasons, setSeasons] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -70,10 +72,14 @@ export default function FieldSeasons() {
           <h3 className="text-lg font-bold text-gray-800">Field Seasons</h3>
           <p className="text-sm text-gray-500 m-0">Define the global ploughing and harvesting periods.</p>
         </div>
-        <button onClick={() => setShowModal(true)} className="flex items-center gap-2 bg-[#006B33] text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-green-700 transition shadow-sm cursor-pointer">
-          <Plus size={18} /> Add Season Period
-        </button>
+        {canEdit && (
+          <button onClick={() => setShowModal(true)} className="flex items-center gap-2 bg-[#006B33] text-white px-4 py-2 rounded-xl text-sm font-semibold hover:bg-green-700 transition shadow-sm cursor-pointer">
+            <Plus size={18} /> Add Season Period
+          </button>
+        )}
       </div>
+
+      {!canEdit && <p className="mb-6 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">View only — only Technical Assistants can change seasons.</p>}
 
       {error && <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 font-medium shadow-sm">{error}</div>}
 
@@ -91,9 +97,11 @@ export default function FieldSeasons() {
                   <Calendar className={s.season_type === "Harvesting" ? "text-green-600" : "text-amber-500"} size={20} /> 
                   {s.season_type} Season
                 </h3>
-                <button onClick={() => removeSeason(s.id)} className="text-gray-400 hover:text-red-500 cursor-pointer transition-colors bg-transparent border-none">
-                  <Trash2 size={18} />
-                </button>
+                {canEdit && (
+                  <button onClick={() => removeSeason(s.id)} className="text-gray-400 hover:text-red-500 cursor-pointer transition-colors bg-transparent border-none">
+                    <Trash2 size={18} />
+                  </button>
+                )}
               </div>
 
               <div className="space-y-4 mt-auto">

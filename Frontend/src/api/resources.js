@@ -40,3 +40,4 @@ export const listHolidays = () => apiClient.get("/calendar").then((r) => r.data.
 export const markHoliday = (date, reason) =>
     apiClient.post("/calendar/holiday", { date, reason }).then((r) => r.data);
 export const removeHoliday = (id) => apiClient.delete(`/calendar/holiday/${id}`).then((r) => r.data);
+export const unmarkHoliday = (id) => apiClient.patch(`/calendar/holiday/${id}/unmark`).then((r) => r.data);

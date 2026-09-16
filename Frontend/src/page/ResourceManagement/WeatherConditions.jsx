@@ -4,10 +4,11 @@ import { Sun, CloudRain, RefreshCw, X } from "lucide-react";
 import { listWeatherLogs, setManualWeather, refreshWeather } from "../../api/resources";
 import { getErrorMessage } from "../../api/client";
 import ResourceTabs from "./ResourceTabs";
-import { buildMonthCells, toISODate, formatFullDate } from "./calendarUtils";
+import { buildMonthCells, toISODate, formatFullDate, canEditResources } from "./calendarUtils";
 
 export default function WeatherConditions() {
   const navigate = useNavigate();
+  const canEdit = canEditResources();
   const [monthOffset, setMonthOffset] = useState(0);
   const [logs, setLogs] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -78,9 +79,11 @@ export default function WeatherConditions() {
         </button>
         <div className="flex items-center justify-between mb-4">
           <h2 className="m-0 text-xl font-bold text-gray-900 tracking-tight">FMRC Weather</h2>
-          <button onClick={handleRefresh} disabled={refreshing} className="flex items-center gap-1.5 text-sm font-semibold text-[#006B33] border border-[#006B33] rounded-md px-3 py-1.5 hover:bg-green-50 disabled:opacity-60">
-            <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} /> {refreshing ? "Syncing..." : "Sync OpenWeatherMap"}
-          </button>
+          {canEdit && (
+            <button onClick={handleRefresh} disabled={refreshing} className="flex items-center gap-1.5 text-sm font-semibold text-[#006B33] border border-[#006B33] rounded-md px-3 py-1.5 hover:bg-green-50 disabled:opacity-60">
+              <RefreshCw size={14} className={refreshing ? "animate-spin" : ""} /> {refreshing ? "Syncing..." : "Sync OpenWeatherMap"}
+            </button>
+          )}
         </div>
 
         <ResourceTabs active="Weather Conditions" />
@@ -130,19 +133,23 @@ export default function WeatherConditions() {
               <button onClick={closeModal} className="bg-transparent border-none cursor-pointer hover:bg-gray-100 p-1.5 rounded-full transition-colors"><X size={20} className="text-gray-500" /></button>
             </div>
 
+            {!canEdit && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">View only — only Technical Assistants can change this.</p>}
+
             <p className="text-sm text-gray-600 mb-2 font-medium">Weather Condition:</p>
             <div className="flex gap-2.5 mb-4">
-              <button onClick={() => setDraftRainy(false)} className={`flex-1 py-2.5 rounded-lg font-semibold flex flex-col items-center gap-1 text-sm transition-colors ${!draftRainy ? "border-2 border-yellow-500 bg-yellow-50 text-yellow-700" : "border border-gray-300 text-gray-600 hover:bg-gray-50"}`}>
+              <button disabled={!canEdit} onClick={() => setDraftRainy(false)} className={`flex-1 py-2.5 rounded-lg font-semibold flex flex-col items-center gap-1 text-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${!draftRainy ? "border-2 border-yellow-500 bg-yellow-50 text-yellow-700" : "border border-gray-300 text-gray-600 hover:bg-gray-50"}`}>
                 <Sun size={18} /> Clear
               </button>
-              <button onClick={() => setDraftRainy(true)} className={`flex-1 py-2.5 rounded-lg font-semibold flex flex-col items-center gap-1 text-sm transition-colors ${draftRainy ? "border-2 border-blue-600 bg-blue-50 text-blue-700" : "border border-gray-300 text-gray-600 hover:bg-gray-50"}`}>
+              <button disabled={!canEdit} onClick={() => setDraftRainy(true)} className={`flex-1 py-2.5 rounded-lg font-semibold flex flex-col items-center gap-1 text-sm transition-colors disabled:opacity-60 disabled:cursor-not-allowed ${draftRainy ? "border-2 border-blue-600 bg-blue-50 text-blue-700" : "border border-gray-300 text-gray-600 hover:bg-gray-50"}`}>
                 <CloudRain size={18} /> Rainy (&gt;5mm)
               </button>
             </div>
 
-            <button onClick={saveDay} disabled={saving} className="w-full p-2.5 rounded-lg border-none bg-[#4CAF50] hover:bg-[#43a047] text-white font-semibold cursor-pointer text-sm transition-colors shadow-sm disabled:opacity-60">
-              {saving ? "Saving..." : "Save Details"}
-            </button>
+            {canEdit && (
+              <button onClick={saveDay} disabled={saving} className="w-full p-2.5 rounded-lg border-none bg-[#4CAF50] hover:bg-[#43a047] text-white font-semibold cursor-pointer text-sm transition-colors shadow-sm disabled:opacity-60">
+                {saving ? "Saving..." : "Save Details"}
+              </button>
+            )}
           </div>
         </div>
       )}
