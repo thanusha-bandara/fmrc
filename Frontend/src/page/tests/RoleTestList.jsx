@@ -38,8 +38,8 @@ function bucketize(tests, role, queueType, userId) {
 }
 
 const TITLES = {
-  TA: { assigned: 'New Assigned Tests', pending: 'Saved Drafts (In Progress)', completed: 'Submitted & Completed' },
-  ME: { assigned: 'Assigned Tests (from TA)', pending: 'Pending Tests (Awaiting CE Approval)', completed: 'Completed Tests' },
+  TA: { assigned: 'Assigned Tests', pending: 'Saved Drafts (In Progress)', completed: 'Completed Tests' },
+  ME: { assigned: 'Assigned Tests ', pending: 'Pending Tests ', completed: 'Completed Tests' },
   CE: { assigned: 'Recommended Tests', pending: 'Non-Recommended Tests', completed: 'Approved Tests' }
 };
 
@@ -209,7 +209,9 @@ export default function RoleTestList({ role, queueType }) {
                 {bucket.map(test => (
                   <tr key={test.test_id} onClick={() => openTest(test)} className="hover:bg-gray-50 cursor-pointer transition-colors group">
                     <td className="py-4 px-6 border-r border-[#006B33]/20 w-1/3">
-                      <p className="font-bold text-lg text-gray-900">{test.machine_name}</p>
+                      <p className="font-bold text-lg text-gray-900">
+                        {test.machine_name} {test.machine_model ? `(${test.machine_model})` : ''}
+                      </p>
                       <p className="text-sm text-gray-700 mt-0.5">{test.test_name}</p>
                     </td>
                     <td className="py-4 px-6 border-r border-[#006B33]/20 w-1/3">
@@ -287,7 +289,9 @@ export default function RoleTestList({ role, queueType }) {
                           </span>
                         )}
                       </div>
-                      <h3 className="font-bold text-xl text-gray-900 leading-tight">{test.machine_name}</h3>
+                      <h3 className="font-bold text-xl text-gray-900 leading-tight">
+                        {test.machine_name} {test.machine_model ? `(${test.machine_model})` : ''}
+                      </h3>
                       <p className="text-sm text-gray-500 mt-1">{test.test_name}</p>
 
                       {test.me_recommendation && test.me_recommendation !== 'Pending' && (

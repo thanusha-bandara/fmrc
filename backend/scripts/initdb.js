@@ -136,7 +136,7 @@ const createTables = async () => {
         test_name VARCHAR(100) NOT NULL,
         is_field_test BOOLEAN DEFAULT TRUE,
         requires_water BOOLEAN DEFAULT FALSE,
-        required_season ENUM('Yala', 'Maha', 'Any') DEFAULT 'Any',
+        required_season ENUM('Ploughing', 'Harvesting', 'Any') DEFAULT 'Any',
         technical_assistant_id INT,
         mechanical_engineer_id INT,
         chief_engineer_id INT,

@@ -2,10 +2,11 @@ import GeneticAlgorithm from 'geneticalgorithm';
 
 const timeSlots = ["Full Day"];
 
-const createRandomSchedule = (validTests, fields, tas, holidays = []) => {
+const createRandomSchedule = (validTests, fields, tas, holidays = [], allSeasons = []) => {
     let schedule = {};
     
-    const requiredDays = validTests.length;
+    // Generate up to 365 days to ensure seasons far in the future can be reached
+    const requiredDays = Math.max(365, validTests.length * 2);
     
     let startDate = new Date();
     const days = [];
@@ -22,23 +23,40 @@ const createRandomSchedule = (validTests, fields, tas, holidays = []) => {
         let dateString = `${yyyy}-${mm}-${dd}`;
         let dayOfWeek = nextDate.getDay();
         
-        // Skip Saturdays , Sundays , and holidays 
+        // Skip Saturdays, Sundays, and holidays 
         if (dayOfWeek !== 0 && dayOfWeek !== 6 && !holidays.includes(dateString)) {
-            schedule[dateString] = [];
-            days.push(dateString);
+            days.push({ dateString, dateObj: nextDate });
         }
         i++;
     }
 
-
     validTests.forEach((test, index) => {
-    
-        const dayIndex = index % days.length; 
-        const assignedDay = days[dayIndex];
+        let assignedDay = null;
+
+        if (test.requiredSeason && test.requiredSeason !== 'Any' && allSeasons && allSeasons.length > 0) {
+            const validSeasonDays = days.filter(d => {
+                return allSeasons.some(s => 
+                    s.season_type === test.requiredSeason && 
+                    d.dateObj >= new Date(s.start_date) && 
+                    d.dateObj <= new Date(s.end_date)
+                );
+            });
+            if (validSeasonDays.length > 0) {
+                // Try to respect FCFS within the season: map index to a valid day sequentially
+                const seasonIdx = index % validSeasonDays.length;
+                assignedDay = validSeasonDays[seasonIdx].dateString;
+            }
+        }
+        
+        if (!assignedDay) {
+            const dayIndex = index % days.length; 
+            assignedDay = days[dayIndex].dateString;
+        }
         
         const randomTimeSlot = timeSlots[Math.floor(Math.random() * timeSlots.length)];
         const randomTA = tas.length > 0 ? tas[Math.floor(Math.random() * tas.length)] : null;
         
+        if (!schedule[assignedDay]) schedule[assignedDay] = [];
         schedule[assignedDay].push({
             test,
             time_slot: randomTimeSlot,
@@ -52,47 +70,43 @@ const createRandomSchedule = (validTests, fields, tas, holidays = []) => {
 };
 
 // mutation
-const mutateSchedule = (schedule, fields, tas) => {
-    let mutated = JSON.parse(JSON.stringify(schedule));
-    const days = Object.keys(mutated);
+const mutateSchedule = (schedule, fields, tas, globalDays = []) => {
+    let mutated = {};
+    Object.keys(schedule).forEach(k => {
+        mutated[k] = JSON.parse(JSON.stringify(schedule[k]));
+    });
 
-    if (days.length === 0) return mutated;
+    const daysWithTests = Object.keys(mutated).filter(d => mutated[d].length > 0);
+    if (daysWithTests.length === 0) return mutated;
 
-    const randomDay1 = days[Math.floor(Math.random() * days.length)];
-    const randomDay2 = days[Math.floor(Math.random() * days.length)];
+    // Pick a random day that has tests
+    const sourceDay = daysWithTests[Math.floor(Math.random() * daysWithTests.length)];
+    if (mutated[sourceDay].length > 0) {
+        // Pick a random test from that day
+        const testIndex = Math.floor(Math.random() * mutated[sourceDay].length);
+        const testToMove = mutated[sourceDay][testIndex];
 
-    if (randomDay1 !== randomDay2) {
-        // Swap tests between the two days
-        const tests1 = mutated[randomDay1];
-        const tests2 = mutated[randomDay2];
-        
-        mutated[randomDay1] = tests2;
-        mutated[randomDay2] = tests1;
-        
-        // Update their scheduled_date property
-        mutated[randomDay1].forEach(t => t.scheduled_date = randomDay1);
-        mutated[randomDay2].forEach(t => t.scheduled_date = randomDay2);
-    }
+        // Pick a random target day
+        const allAvailableDays = globalDays.length > 0 ? globalDays : Object.keys(mutated);
+        const targetDay = allAvailableDays[Math.floor(Math.random() * allAvailableDays.length)];
 
-    // Mutate the properties of a random test
-    const daysWithTests = days.filter(d => mutated[d].length > 0);
-    if (daysWithTests.length > 0) {
-        const mutateDay = daysWithTests[Math.floor(Math.random() * daysWithTests.length)];
-        const testIndex = Math.floor(Math.random() * mutated[mutateDay].length);
-        const testAssignment = mutated[mutateDay][testIndex];
+        if (sourceDay !== targetDay) {
+            // Move it!
+            mutated[sourceDay].splice(testIndex, 1);
+            if (!mutated[targetDay]) mutated[targetDay] = [];
+            mutated[targetDay].push(testToMove);
+            testToMove.scheduled_date = targetDay;
+        }
 
-        testAssignment.time_slot = timeSlots[Math.floor(Math.random() * timeSlots.length)];
-        
-        testAssignment.field_id = null;
-        
+        // Also mutate its properties
+        testToMove.time_slot = timeSlots[Math.floor(Math.random() * timeSlots.length)];
+        testToMove.field_id = null;
         if (tas && tas.length > 0) {
-            testAssignment.assigned_ta_id = tas[Math.floor(Math.random() * tas.length)].user_id;
+            testToMove.assigned_ta_id = tas[Math.floor(Math.random() * tas.length)].user_id;
         }
     }
 
     return mutated;
-    
-
 };
 
 // crossover
@@ -102,6 +116,17 @@ const crossoverSchedules = (sched1, sched2) => {
     Object.keys(sched1).forEach(day => {
         childSchedule[day] = [];
     });
+    Object.keys(sched2).forEach(day => {
+        if (!childSchedule[day]) childSchedule[day] = [];
+    });
+
+    // Build a map for O(1) lookup of tests in sched2
+    const sched2Map = {};
+    Object.keys(sched2).forEach(d2 => {
+        sched2[d2].forEach(a => {
+            sched2Map[a.test.test_id || a.test.id] = a;
+        });
+    });
 
     Object.keys(sched1).forEach(day => {
         sched1[day].forEach(assignment => {
@@ -110,20 +135,11 @@ const crossoverSchedules = (sched1, sched2) => {
             if (takeFromSched1) {
                 childSchedule[day].push(JSON.parse(JSON.stringify(assignment)));
             } else {
-                // Find this test in sched2
-                let foundAssignment = null;
-                Object.keys(sched2).forEach(d2 => {
-                    const found = sched2[d2].find(a => a.test.test_id === assignment.test.test_id || a.test.id === assignment.test.id);
-                    if (found) {
-                        foundAssignment = found;
-                    }
-                });
+                // Find this test in sched2 map
+                let foundAssignment = sched2Map[assignment.test.test_id || assignment.test.id];
                 
                 if (foundAssignment) {
                     const targetDay = foundAssignment.scheduled_date;
-                    if (!childSchedule[targetDay]) {
-                        childSchedule[targetDay] = [];
-                    }
                     childSchedule[targetDay].push(JSON.parse(JSON.stringify(foundAssignment)));
                 } else {
                     childSchedule[day].push(JSON.parse(JSON.stringify(assignment)));
@@ -135,12 +151,28 @@ const crossoverSchedules = (sched1, sched2) => {
     return childSchedule;
 };
 
-export const runGA = (validTests, rainyDates = [], fields = [], tas = [], holidays = [], taLeaves = [], farmDailyStatus = {}) => {
+export const runGA = (validTests, rainyDates = [], fields = [], tas = [], holidays = [], taLeaves = [], farmDailyStatus = {}, allSeasons = []) => {
     if (validTests.length === 0) return {};
+
+    // Generate full days array once for mutation and crossover to know the universe of days
+    const requiredDays = Math.max(365, validTests.length * 2);
+    let startDate = new Date();
+    const globalDays = [];
+    let dIdx = 0;
+    while (globalDays.length < requiredDays) {
+        let nextDate = new Date(startDate);
+        nextDate.setDate(startDate.getDate() + dIdx + 1);
+        let dateString = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}-${String(nextDate.getDate()).padStart(2, '0')}`;
+        let dayOfWeek = nextDate.getDay();
+        if (dayOfWeek !== 0 && dayOfWeek !== 6 && !holidays.includes(dateString)) {
+            globalDays.push(dateString);
+        }
+        dIdx++;
+    }
 
     let initialPopulation = [];
     for (let i = 0; i < 50; i++) {
-        initialPopulation.push(createRandomSchedule(validTests, fields, tas, holidays));
+        initialPopulation.push(createRandomSchedule(validTests, fields, tas, holidays, allSeasons));
     }
 
     // fitness function
@@ -205,6 +237,23 @@ export const runGA = (validTests, rainyDates = [], fields = [], tas = [], holida
                         }
                     }
                 }
+
+                // Season Constraint Check
+                const reqSeason = assignment.test.requiredSeason;
+                if (reqSeason && reqSeason !== 'Any' && allSeasons && allSeasons.length > 0) {
+                    const assignedDateObj = new Date(dateStr);
+                    const isInSeason = allSeasons.some(s => {
+                        return s.season_type === reqSeason && 
+                               assignedDateObj >= new Date(s.start_date) && 
+                               assignedDateObj <= new Date(s.end_date);
+                    });
+                    
+                    if (!isInSeason) {
+                        score -= 5000; // Big penalty for scheduling on a day outside the required season
+                    } else {
+                        score += 200;  // Reward for matching the correct season day
+                    }
+                }
             });
         });
 
@@ -214,7 +263,7 @@ export const runGA = (validTests, rainyDates = [], fields = [], tas = [], holida
     const config = {
         population: initialPopulation,
         fitness: calculateFitness,
-        mutate: (sched) => mutateSchedule(sched, fields, tas),
+        mutate: (sched) => mutateSchedule(sched, fields, tas, globalDays),
         crossover: crossoverSchedules,
         optimization: 'maximum'
     };
@@ -246,8 +295,12 @@ export const runGA = (validTests, rainyDates = [], fields = [], tas = [], holida
         const ft = fieldTestsOnRainyDays[i];
         const lt = labTestsOnSunnyDays[i];
 
-        bestSchedule[ft.dateStr] = [lt.assignment];
-        bestSchedule[lt.dateStr] = [ft.assignment];
+        // Swap without overwriting other tests on the same day
+        bestSchedule[ft.dateStr] = bestSchedule[ft.dateStr].filter(a => a !== ft.assignment);
+        bestSchedule[ft.dateStr].push(lt.assignment);
+        
+        bestSchedule[lt.dateStr] = bestSchedule[lt.dateStr].filter(a => a !== lt.assignment);
+        bestSchedule[lt.dateStr].push(ft.assignment);
         
         lt.assignment.scheduled_date = ft.dateStr;
         ft.assignment.scheduled_date = lt.dateStr;

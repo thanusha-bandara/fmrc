@@ -1,20 +1,24 @@
 import { filterAndSortTests } from '../services/ruleBasedService.js';
 import { runGA } from '../services/geneticAlgorithmService.js';
 import { getRainyDates } from '../services/weatherService.js';
-import { getCurrentSeason } from '../models/field.js';
+import { getFarmSeasons } from '../models/field.js';
 import { getTechnicalAssistants, getTALeaves } from '../models/user.js';
-import { getPendingTests } from '../models/testRecord.js';
 import { getCustomHolidays } from '../models/calendar.js';
 import { persistSchedule } from '../services/autoScheduleService.js';
 import db from '../config/db.js';
 
 export const generateSchedule = async (req, res) => {
     try {
-        // Fetch all required data directly from the database models
-        const pendingTests = await getPendingTests();
-        const currentSeason = await getCurrentSeason();
+        const [tests] = await db.query(`
+            SELECT tr.test_id, tr.test_name, tr.is_field_test, tr.requires_water, tr.required_season, tr.technical_assistant_id, m.registration_date as registrationDate, m.machine_name, MAX(s.schedule_id) as schedule_id
+            FROM Test_Records tr JOIN Machinery m ON tr.machine_id = m.machine_id LEFT JOIN Schedules s ON tr.test_id = s.test_id WHERE s.test_id IS NULL OR s.status IN ('Scheduled', 'Rescheduled') GROUP BY tr.test_id
+        `);
 
-        const filteredTests = filterAndSortTests(pendingTests, currentSeason);
+        if (tests.length === 0) return res.status(200).json({ success: true, message: "No tests to schedule.", schedule: [] });
+
+        const pendingTests = tests.map(t => ({ test_id: t.test_id, test_name: t.test_name, registrationDate: t.registrationDate, machineName: t.machine_name, isFieldTest: Boolean(t.is_field_test), requiredSeason: t.required_season || "Any", requiresWater: Boolean(t.requires_water), requiredTA: t.technical_assistant_id || null }));
+        const allSeasons = await getFarmSeasons();
+        const filteredTests = filterAndSortTests(pendingTests, allSeasons);
 
         // Fetch active Technical Assistants
         const tas = await getTechnicalAssistants();
@@ -34,7 +38,7 @@ export const generateSchedule = async (req, res) => {
             return acc;
         }, {});
 
-        const finalSchedule = runGA(filteredTests, rainyDates, [], tas, allHolidays, taLeaves, farmDailyStatus);
+        const finalSchedule = runGA(filteredTests, rainyDates, [], tas, allHolidays, taLeaves, farmDailyStatus, allSeasons);
 
         // Persist so GET /api/schedule reflects the newly generated calendar
         const testIds = filteredTests.map(t => t.test_id);

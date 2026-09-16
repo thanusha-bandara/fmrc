@@ -2,13 +2,11 @@ import db from '../config/db.js';
 import { filterAndSortTests } from './ruleBasedService.js';
 import { runGA } from './geneticAlgorithmService.js';
 import { getRainyDates } from './weatherService.js';
-import { getCurrentSeason } from '../models/field.js';
+import { getFarmSeasons } from '../models/field.js';
 import { getTechnicalAssistants, getTALeaves } from '../models/user.js';
 import { getCustomHolidays } from '../models/calendar.js';
 
-// Shared by both the manual "Generate Schedule" endpoint and the automatic
-// re-scheduling triggered by weather/holiday/resource changes, so a schedule
-// computed by the GA is always reflected in GET /api/schedule.
+
 export const persistSchedule = async (testIds, bestSchedule) => {
     if (testIds.length > 0) {
         await db.query(`DELETE FROM Schedules WHERE test_id IN (?) AND status IN ('Scheduled', 'Rescheduled')`, [testIds]);
@@ -44,11 +42,12 @@ export const runAutomaticScheduling = async () => {
                 tr.technical_assistant_id, 
                 m.registration_date as registrationDate,
                 m.machine_name,
-                s.schedule_id
+                MAX(s.schedule_id) as schedule_id
             FROM Test_Records tr 
             JOIN Machinery m ON tr.machine_id = m.machine_id 
             LEFT JOIN Schedules s ON tr.test_id = s.test_id 
             WHERE s.test_id IS NULL OR s.status IN ('Scheduled', 'Rescheduled', 'Cancelled')
+            GROUP BY tr.test_id
         `);
 
         if (tests.length === 0) {
@@ -70,8 +69,8 @@ export const runAutomaticScheduling = async () => {
         });
 
         // 2. Fetch constraints
-        const currentSeason = await getCurrentSeason();
-        const filteredTests = filterAndSortTests(pendingTests, currentSeason);
+        const allSeasons = await getFarmSeasons();
+        const filteredTests = filterAndSortTests(pendingTests, allSeasons);
         
         const tas = await getTechnicalAssistants();
         const taLeaves = await getTALeaves();
@@ -89,7 +88,7 @@ export const runAutomaticScheduling = async () => {
         }, {});
 
         // 3. Run Genetic Algorithm
-        const bestSchedule = runGA(filteredTests, rainyDates, [], tas, allHolidays, taLeaves, farmDailyStatus);
+        const bestSchedule = runGA(filteredTests, rainyDates, [], tas, allHolidays, taLeaves, farmDailyStatus, allSeasons);
 
         // 4. Save to Database (replaces old 'Scheduled'/'Rescheduled' rows for these tests)
         const testIds = tests.map(t => t.test_id);

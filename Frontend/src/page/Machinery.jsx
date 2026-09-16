@@ -248,7 +248,8 @@ export default function Machinery() {
             className="w-full bg-transparent outline-none text-sm"
           />
         </div>
-        <table className="w-full text-left border-collapse">
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse min-w-max">
           <thead className="bg-white border-b border-gray-200 text-sm font-semibold text-gray-600">
             <tr>
               <th className="py-4 px-6 w-10"></th>
@@ -389,6 +390,7 @@ export default function Machinery() {
             ))}
           </tbody>
         </table>
+        </div>
       </div>
 
       {/* Registration Modal */}

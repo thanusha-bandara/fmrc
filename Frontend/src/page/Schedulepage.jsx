@@ -17,7 +17,7 @@ const SchedulePage = () => {
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
   const [selectedEvent, setSelectedEvent] = useState(null);
-  const canGenerate = role() === 'ADMIN' || role() === 'TA';
+  const canGenerate = role() === 'ADMIN';
 
   const load = () => {
     setLoading(true);
@@ -140,10 +140,6 @@ const SchedulePage = () => {
               <div className="flex justify-between items-center border-b border-gray-100 pb-3">
                 <span className="text-sm text-gray-500 font-medium">Assigned To</span>
                 <span className="text-sm font-bold text-gray-900">{selectedEvent.assigned_ta_name || 'Unassigned'}</span>
-              </div>
-              <div className="flex justify-between items-center border-b border-gray-100 pb-3">
-                <span className="text-sm text-gray-500 font-medium">Location</span>
-                <span className="text-sm font-bold text-gray-900">{selectedEvent.field_name ? `Field: ${selectedEvent.field_name}` : 'Lab / General'}</span>
               </div>
               <div className="flex justify-between items-center border-b border-gray-100 pb-3">
                 <span className="text-sm text-gray-500 font-medium">Scheduled Date</span>

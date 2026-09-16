@@ -18,8 +18,8 @@ const highlandImplementTests = (implement) =>
         test_name: `Highland Field Test - ${implement} (Test ${n})`,
         schema_key: "HIGHLAND",
         is_field_test: true,
-        requires_water: false,
-        required_season: "Any",
+        requires_water: true,
+        required_season: "Ploughing",
         group_key: implementGroupKey("HIGHLAND", implement)
     }));
 
@@ -29,20 +29,20 @@ const lowlandImplementTests = (implement) =>
         schema_key: "LOWLAND",
         is_field_test: true,
         requires_water: true,
-        required_season: "Any",
+        required_season: "Ploughing",
         group_key: implementGroupKey("LOWLAND", implement)
     }));
 
 const FOUR_WHEEL_TRACTOR = [
     { test_name: "Lab Test - Dimensions & Specifications", schema_key: "LAB", is_field_test: false, requires_water: false, required_season: "Any" },
-    { test_name: "Speed Test", schema_key: "SPEED", is_field_test: false, requires_water: false, required_season: "Any" },
+    { test_name: "Speed Test", schema_key: "SPEED", is_field_test: false, requires_water: true, required_season: "Any" },
     ...highlandImplementTests("Tine Tiller"),
     ...highlandImplementTests("Rotorvator"),
     ...highlandImplementTests("Disc Plough"),
     ...lowlandImplementTests("Tine Tiller"),
     ...lowlandImplementTests("Rotorvator"),
-    { test_name: "Transport Test", schema_key: "TRANSPORT", is_field_test: false, requires_water: false, required_season: "Any" },
-    { test_name: "Endurance Test", schema_key: "ENDURANCE", is_field_test: true, requires_water: false, required_season: "Any" }
+    { test_name: "Transport Test", schema_key: "TRANSPORT", is_field_test: false, requires_water: true, required_season: "Any" },
+    { test_name: "Endurance Test", schema_key: "ENDURANCE", is_field_test: true, requires_water: true, required_season: "Ploughing" }
 ];
 
 const harvesterFieldTests = (variety, method) =>
@@ -51,7 +51,7 @@ const harvesterFieldTests = (variety, method) =>
         schema_key: "HARVESTER_FIELD",
         is_field_test: true,
         requires_water: true,
-        required_season: "Any"
+        required_season: "Harvesting"
     }));
 
 const COMBINE_HARVESTER = [
