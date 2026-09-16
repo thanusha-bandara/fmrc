@@ -33,9 +33,21 @@ function bucketize(tests, role, queueType, userId) {
 }
 
 const CARD_LABELS = {
-  TA: { assigned: 'New Assigned Tests', pending: 'Saved Drafts (In Progress)', completed: 'Submitted & Completed' },
-  ME: { assigned: 'Assigned Tests (from TA)', pending: 'Pending Tests (Awaiting CE Approval)', completed: 'Completed Tests' },
-  CE: { assigned: 'Recommended Tests', pending: 'Non-Recommended Tests', completed: 'Approved Tests' }
+  TA: {
+    assigned: { title: 'New Assigned Tests' },
+    pending: { title: 'Saved Drafts', subtitle: 'In Progress' },
+    completed: { title: 'Submitted & Completed' }
+  },
+  ME: {
+    assigned: { title: 'Assigned Tests', subtitle: 'from TA' },
+    pending: { title: 'Pending Tests' },
+    completed: { title: 'Completed Tests' }
+  },
+  CE: {
+    assigned: { title: 'Recommended Tests' },
+    pending: { title: 'Non-Recommended Tests' },
+    completed: { title: 'Approved Tests' }
+  }
 };
 
 export default function TestManagementHub({ role }) {
@@ -56,7 +68,14 @@ export default function TestManagementHub({ role }) {
     <div className="bg-white rounded-2xl border border-gray-200 shadow-sm flex flex-col justify-between overflow-hidden">
       <div className="p-6">
         <div className="flex items-center justify-between mb-2">
-          <h2 className="text-lg font-bold text-gray-900">{CARD_LABELS[role][queueType]}</h2>
+          <h2 className="text-lg font-bold text-gray-900">
+            {CARD_LABELS[role][queueType].title}
+            {CARD_LABELS[role][queueType].subtitle && (
+              <span className="block text-xs font-semibold text-gray-500 mt-0.5">
+                {CARD_LABELS[role][queueType].subtitle}
+              </span>
+            )}
+          </h2>
           <span className="text-xs text-gray-500 font-bold border border-gray-200 rounded-full px-2 py-0.5">
             {loading ? '.' : items.length}
           </span>

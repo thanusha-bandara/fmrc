@@ -80,6 +80,13 @@ export const updateReportDecision = async (reportId, chiefEngineerId, decision, 
     return getReportById(reportId);
 };
 
+// Updates only the file path -- used to re-point a report at a freshly re-rendered PDF after
+// the original went missing from disk, without disturbing its existing CE approval/decision.
+export const updateReportPdfPath = async (reportId, pdfFilePath) => {
+    await db.query(`UPDATE Reports SET pdf_file_path = ? WHERE report_id = ?`, [pdfFilePath, reportId]);
+    return getReportById(reportId);
+};
+
 export const getPendingReports = async () => {
     const [rows] = await db.query(`
         SELECT r.*, ANY_VALUE(m.machine_name) AS machine_name, ANY_VALUE(m.model) AS machine_model

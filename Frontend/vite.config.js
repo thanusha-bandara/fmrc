@@ -34,8 +34,21 @@ export default defineConfig({
         ]
       },
       workbox: {
+        // Take over from any previously-installed service worker immediately on the next
+        // load instead of waiting for every open tab to close first -- without this, a
+        // stale worker (and its cached API responses, e.g. an old PDF-download error) can
+        // keep controlling the page indefinitely even after the underlying bug is fixed.
+        skipWaiting: true,
+        clientsClaim: true,
         globPatterns: ['**/*.{js,css,html,ico,png,svg,jsx}'],
         runtimeCaching: [
+          {
+            // File downloads (report PDFs) must always hit the network -- never serve a
+            // cached success OR a cached error for these, since the underlying file can
+            // change (re-approved, regenerated) without the URL itself changing.
+            urlPattern: /\/api\/reports\/.*\/download/i,
+            handler: 'NetworkOnly'
+          },
           {
             urlPattern: /\/api\/.*/i,
             handler: 'NetworkFirst',

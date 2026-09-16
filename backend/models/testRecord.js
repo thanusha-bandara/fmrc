@@ -254,6 +254,19 @@ export const getFinalizeStatusForMachine = async (machineId) => {
     };
 };
 
+// Mechanical Engineer saves review progress (comments) without finalizing -- test stays
+// 'Submitted' so it's still in the ME's "Assigned Tests" queue, not yet handed to the CE.
+export const saveReviewDraft = async (testId, mechanicalEngineerId, comments) => {
+    await db.query(
+        `UPDATE Test_Records SET
+            mechanical_engineer_id = ?,
+            me_comments = ?
+         WHERE test_id = ?`,
+        [mechanicalEngineerId, comments || null, testId]
+    );
+    return getTestRecordById(testId);
+};
+
 // Mechanical Engineer reviews the submitted data and recommends / does not recommend it.
 // Marking which test's data feeds the official final report happens later, on the dedicated
 // Finalize Report screen (see getFinalizeStatusForMachine / finalizeReport), not during review.

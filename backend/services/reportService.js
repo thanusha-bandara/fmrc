@@ -47,7 +47,10 @@ export const renderTemplateSection = (doc, formData, template) => {
     });
 };
 
-export const generateMachineReport = async (machineId, chiefEngineerId) => {
+// Renders the PDF and writes it to disk, returning just the file name -- no DB write. Split
+// out from generateMachineReport so the download endpoint can re-render a report's PDF (e.g.
+// if the file went missing from disk) without touching its existing approval record.
+export const buildMachineReportPdf = async (machineId) => {
     const fileName = `FMRC-Machine-Report-${machineId}-${Date.now()}.pdf`;
     const filePath = path.join(REPORTS_DIR, fileName);
 
@@ -157,7 +160,13 @@ export const generateMachineReport = async (machineId, chiefEngineerId) => {
         writeStream.on("error", reject);
     });
 
-    const report = await createReport({
+    return { fileName, anyRejected };
+};
+
+export const generateMachineReport = async (machineId, chiefEngineerId) => {
+    const { fileName, anyRejected } = await buildMachineReportPdf(machineId);
+
+    return createReport({
         machine_id: machineId,
         test_id: null,
         report_type: 'Machine Certification',
@@ -165,6 +174,4 @@ export const generateMachineReport = async (machineId, chiefEngineerId) => {
         approved_by: chiefEngineerId,
         certification_status: anyRejected ? "Rejected" : "Certified"
     });
-
-    return report;
 };
