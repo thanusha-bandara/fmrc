@@ -10,17 +10,13 @@ import { buildMonthCells, toISODate, formatFullDate } from "./calendarUtils";
 
 export default function HumanAvailability() {
   const navigate = useNavigate();
-  const isAdmin = (localStorage.getItem('userRole') || 'TA') === 'ADMIN';
-
-  const [personType, setPersonType] = useState("TA"); // "TA" | "Labour"
   const [monthOffset, setMonthOffset] = useState(0);
   const [records, setRecords] = useState([]);
-  const [people, setPeople] = useState([]);
-  const [holidays, setHolidays] = useState([]);
+  const [tas, setTas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedDay, setSelectedDay] = useState(null);
-  const [draftPersonId, setDraftPersonId] = useState("");
+  const [draftUserId, setDraftUserId] = useState("");
   const [draftReason, setDraftReason] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -55,8 +51,7 @@ export default function HumanAvailability() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { load(); }, [personType]);
-  useEffect(() => { listHolidays().then(setHolidays).catch(() => {}); }, []);
+  useEffect(() => { load(); }, []);
 
   // Whenever viewMode changes, reset the draftUserId to the first available in that list
   useEffect(() => {
@@ -94,19 +89,13 @@ export default function HumanAvailability() {
     });
   }
 
-  const holidayByDate = {};
-  holidays.forEach((h) => { holidayByDate[h.date] = h; });
-
-  const todayKey = toISODate(new Date());
+  const today = new Date();
+  const todayKey = toISODate(today);
   const todaysLeaves = leavesByDate[todayKey] || [];
   
   const safeTas = Array.isArray(tas) ? tas : [];
   const safeLabours = Array.isArray(labours) ? labours : [];
   const currentTotal = viewMode === 'TA' ? safeTas.length : safeLabours.length;
-
-  const selectedISO = selectedDay ? toISODate(selectedDay) : null;
-  const selectedDayLeaves = selectedISO ? (leavesByDate[selectedISO] || []) : [];
-  const selectedDayHoliday = selectedISO ? holidayByDate[selectedISO] : null;
 
   const openDay = (cell) => {
     setSelectedDay(cell.date);
@@ -116,7 +105,7 @@ export default function HumanAvailability() {
   const closeModal = () => setSelectedDay(null);
 
   const saveDay = async (isOnLeave) => {
-    if (!draftPersonId) return;
+    if (!draftUserId) return;
     setSaving(true);
     setError("");
     try {
@@ -270,49 +259,12 @@ export default function HumanAvailability() {
               )}
             </div>
           </div>
-
-          {isLabour && (
-            <div className="border border-gray-200 rounded-xl p-4 md:p-5 bg-white shrink-0 shadow-sm lg:flex-1">
-              <div className="flex justify-between items-center mb-3">
-                <h3 className="m-0 text-sm font-bold text-gray-800">Labour Roster</h3>
-                {isAdmin && (
-                  <button onClick={() => setShowRosterModal(true)} className="flex items-center gap-1.5 bg-[#006B33] text-white px-2.5 py-1.5 rounded-md text-xs font-medium hover:bg-green-700">
-                    <UserPlus size={14} /> Add
-                  </button>
-                )}
-              </div>
-              <div className="space-y-1.5 max-h-[400px] overflow-auto">
-                {loading ? (
-                  <p className="text-xs text-gray-400">Loading...</p>
-                ) : people.length === 0 ? (
-                  <p className="text-xs text-gray-400">No labourers added yet.</p>
-                ) : people.map((l) => (
-                  <div key={l.labour_id} className="flex items-center justify-between gap-2 py-1.5 px-2 rounded-md hover:bg-gray-50 text-sm">
-                    <div className="min-w-0">
-                      <p className={`m-0 font-medium truncate ${l.is_active ? 'text-gray-900' : 'text-gray-400 line-through'}`}>{l.full_name}</p>
-                      {l.phone && <p className="m-0 text-xs text-gray-400">{l.phone}</p>}
-                    </div>
-                    {isAdmin && (
-                      <div className="flex items-center gap-2 shrink-0">
-                        <button onClick={() => handleToggleLabourActive(l)} title={l.is_active ? 'Deactivate' : 'Reactivate'} className="text-amber-600 hover:text-amber-800">
-                          <Ban size={15} />
-                        </button>
-                        <button onClick={() => handleDeleteLabour(l)} title="Delete" className="text-red-600 hover:text-red-800">
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
 
       {selectedDay && (
         <div onClick={closeModal} className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100]">
-          <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-2xl p-6 w-[380px] shadow-xl max-h-[90vh] overflow-auto">
+          <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-2xl p-6 w-[380px] shadow-xl">
             <div className="flex justify-between items-center mb-4">
               <div className="bg-green-50 text-green-800 px-3.5 py-2 rounded-lg font-semibold text-sm border border-green-100">{formatFullDate(selectedDay)}</div>
               <button onClick={closeModal} className="bg-transparent border-none cursor-pointer hover:bg-gray-100 p-1.5 rounded-full transition-colors"><X size={20} className="text-gray-500" /></button>

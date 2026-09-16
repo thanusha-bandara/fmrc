@@ -9,7 +9,6 @@ export const getPendingTests = async () => {
             tr.is_field_test,
             tr.requires_water,
             tr.required_season,
-            tr.required_labour_count,
             tr.technical_assistant_id,
             m.registration_date as registrationDate,
             m.machine_name
@@ -29,8 +28,7 @@ export const getPendingTests = async () => {
             isFieldTest: Boolean(t.is_field_test),
             requiredSeason: t.required_season || "Any",
             requiresWater: Boolean(t.requires_water),
-            requiredTA: t.technical_assistant_id || null,
-            requiredLabourCount: t.required_labour_count ?? 0
+            requiredTA: t.technical_assistant_id || null
         };
     });
 };
@@ -58,17 +56,16 @@ const DETAIL_SELECT = `
 `;
 
 // Create a new test request for a machine (Admin / Mechanical Engineer).
-export const createTestRecord = async ({ machine_id, test_name, is_field_test, requires_water, required_season, technical_assistant_id, required_labour_count }) => {
+export const createTestRecord = async ({ machine_id, test_name, is_field_test, requires_water, required_season, technical_assistant_id }) => {
     const [result] = await db.query(
-        `INSERT INTO Test_Records (machine_id, test_name, is_field_test, requires_water, required_season, required_labour_count, technical_assistant_id, status)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'Draft')`,
+        `INSERT INTO Test_Records (machine_id, test_name, is_field_test, requires_water, required_season, technical_assistant_id, status)
+         VALUES (?, ?, ?, ?, ?, ?, 'Draft')`,
         [
             machine_id,
             test_name,
             is_field_test ?? true,
             requires_water ?? false,
             required_season || "Any",
-            required_labour_count ?? 0,
             technical_assistant_id || null
         ]
     );
