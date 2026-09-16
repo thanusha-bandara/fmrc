@@ -1,9 +1,16 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+<<<<<<< HEAD
 import { X, UserPlus, Ban, Trash2 } from "lucide-react";
 import { listStaffAvailability, setStaffAvailability, listLabourAvailability, setLabourAvailability, listHolidays } from "../../api/resources";
 import { listUsers } from "../../api/users";
 import { listLabours, addLabour, updateLabour, deleteLabour } from "../../api/labours";
+=======
+import { X } from "lucide-react";
+import { listStaffAvailability, setStaffAvailability, listHolidays } from "../../api/resources";
+import { listUsers } from "../../api/users";
+import { listLabours, listLabourAvailability, setLabourAvailability, createLabour } from "../../api/labours";
+>>>>>>> 6fbbe5374139ecab1b933ca3bdcf9f0787ff6be5
 import { getErrorMessage } from "../../api/client";
 import ResourceTabs from "./ResourceTabs";
 import { buildMonthCells, toISODate, formatFullDate } from "./calendarUtils";
@@ -24,6 +31,7 @@ export default function HumanAvailability() {
   const [draftReason, setDraftReason] = useState("");
   const [saving, setSaving] = useState(false);
 
+<<<<<<< HEAD
   const [showRosterModal, setShowRosterModal] = useState(false);
   const [rosterForm, setRosterForm] = useState({ full_name: "", phone: "" });
   const [rosterSaving, setRosterSaving] = useState(false);
@@ -44,6 +52,34 @@ export default function HumanAvailability() {
         setPeople(peopleData);
         const active = isLabour ? peopleData.filter((p) => p.is_active) : peopleData;
         if (active.length > 0) setDraftPersonId(String(active[0][personIdKey]));
+=======
+  const [viewMode, setViewMode] = useState('TA'); // 'TA' or 'Labour'
+  const [labours, setLabours] = useState([]);
+  const [labourRecords, setLabourRecords] = useState([]);
+  const [newLabourName, setNewLabourName] = useState("");
+  const [showAddLabourModal, setShowAddLabourModal] = useState(false);
+  const [holidays, setHolidays] = useState([]);
+
+  const load = () => {
+    setLoading(true);
+    Promise.all([
+      listStaffAvailability(), 
+      listUsers("Technical_Assistant"),
+      listLabours().catch(() => []),
+      listLabourAvailability().catch(() => []),
+      listHolidays().catch(() => [])
+    ])
+      .then(([recordData, taData, labourData, labourAvData, holidayData]) => {
+        setRecords(recordData);
+        setTas(taData);
+        setLabours(labourData);
+        setLabourRecords(labourAvData);
+        setHolidays(holidayData);
+        
+        // Reset draft user based on active view mode if it's currently empty or invalid
+        if (viewMode === 'TA' && taData.length > 0) setDraftUserId(String(taData[0].user_id));
+        else if (viewMode === 'Labour' && labourData.length > 0) setDraftUserId(String(labourData[0].labour_id));
+>>>>>>> 6fbbe5374139ecab1b933ca3bdcf9f0787ff6be5
       })
       .catch((err) => setError(getErrorMessage(err, "Could not load availability data.")))
       .finally(() => setLoading(false));
@@ -52,11 +88,19 @@ export default function HumanAvailability() {
   useEffect(() => { load(); }, [personType]);
   useEffect(() => { listHolidays().then(setHolidays).catch(() => {}); }, []);
 
+  // Whenever viewMode changes, reset the draftUserId to the first available in that list
+  useEffect(() => {
+    if (viewMode === 'TA' && tas.length > 0) setDraftUserId(String(tas[0].user_id));
+    else if (viewMode === 'Labour' && labours.length > 0) setDraftUserId(String(labours[0].labour_id));
+    else setDraftUserId("");
+  }, [viewMode, tas, labours]);
+
   const baseDate = new Date();
   baseDate.setMonth(baseDate.getMonth() + monthOffset, 1);
   const monthLabel = baseDate.toLocaleString("default", { month: "long", year: "numeric" });
   const cells = buildMonthCells(baseDate);
 
+<<<<<<< HEAD
   // Backend now returns `date` as a plain YYYY-MM-DD string (DATE_FORMAT'd), so it can
   // be used directly as the lookup key — no Date-object round trip that could shift it
   // by a day depending on the server's timezone.
@@ -64,13 +108,41 @@ export default function HumanAvailability() {
   records.forEach((r) => {
     if (!leavesByDate[r.date]) leavesByDate[r.date] = [];
     if (r.is_on_leave) leavesByDate[r.date].push(r);
+=======
+  const currentRecords = Array.isArray(viewMode === 'TA' ? records : labourRecords) ? (viewMode === 'TA' ? records : labourRecords) : [];
+  const leavesByDate = {};
+  currentRecords.forEach((r) => {
+    try {
+      if (r && r.date) {
+        const dateStr = new Date(r.date).toISOString().split("T")[0];
+        if (!leavesByDate[dateStr]) leavesByDate[dateStr] = [];
+        if (r.is_on_leave) leavesByDate[dateStr].push(r);
+      }
+    } catch(e) {}
+>>>>>>> 6fbbe5374139ecab1b933ca3bdcf9f0787ff6be5
   });
+  
+  const holidaysByDate = {};
+  if (Array.isArray(holidays)) {
+    holidays.forEach((h) => {
+      try {
+        if (h && h.date) {
+          const dateStr = new Date(h.date).toISOString().split("T")[0];
+          holidaysByDate[dateStr] = h;
+        }
+      } catch(e) {}
+    });
+  }
 
   const holidayByDate = {};
   holidays.forEach((h) => { holidayByDate[h.date] = h; });
 
   const todayKey = toISODate(new Date());
   const todaysLeaves = leavesByDate[todayKey] || [];
+  
+  const safeTas = Array.isArray(tas) ? tas : [];
+  const safeLabours = Array.isArray(labours) ? labours : [];
+  const currentTotal = viewMode === 'TA' ? safeTas.length : safeLabours.length;
 
   const selectedISO = selectedDay ? toISODate(selectedDay) : null;
   const selectedDayLeaves = selectedISO ? (leavesByDate[selectedISO] || []) : [];
@@ -88,10 +160,17 @@ export default function HumanAvailability() {
     setSaving(true);
     setError("");
     try {
+<<<<<<< HEAD
       if (isLabour) {
         await setLabourAvailability({ labourId: Number(draftPersonId), date: toISODate(selectedDay), isOnLeave, reason: draftReason });
       } else {
         await setStaffAvailability({ userId: Number(draftPersonId), date: toISODate(selectedDay), isOnLeave, reason: draftReason });
+=======
+      if (viewMode === 'TA') {
+        await setStaffAvailability({ userId: Number(draftUserId), date: toISODate(selectedDay), isOnLeave, reason: draftReason });
+      } else {
+        await setLabourAvailability({ labourId: Number(draftUserId), date: toISODate(selectedDay), isOnLeave, reason: draftReason });
+>>>>>>> 6fbbe5374139ecab1b933ca3bdcf9f0787ff6be5
       }
       closeModal();
       load();
@@ -104,6 +183,7 @@ export default function HumanAvailability() {
 
   const handleAddLabour = async (e) => {
     e.preventDefault();
+<<<<<<< HEAD
     if (!rosterForm.full_name) return;
     setRosterSaving(true);
     setError("");
@@ -135,19 +215,41 @@ export default function HumanAvailability() {
       load();
     } catch (err) {
       setError(getErrorMessage(err, "Could not remove labourer."));
+=======
+    if (!newLabourName.trim()) return;
+    try {
+      await createLabour(newLabourName.trim());
+      setNewLabourName("");
+      setShowAddLabourModal(false);
+      load();
+    } catch (err) {
+      setError(getErrorMessage(err, "Could not add labour."));
+>>>>>>> 6fbbe5374139ecab1b933ca3bdcf9f0787ff6be5
     }
   };
 
   return (
     <>
-      <div className="p-5 md:p-8 h-full flex flex-col overflow-auto box-border">
-        <button onClick={() => navigate("/resource-management")} className="mb-3 cursor-pointer border border-gray-300 bg-white rounded-md px-3.5 py-1.5 w-fit text-sm hover:bg-gray-50 transition-colors">
-          ← Back
-        </button>
-        <h2 className="m-0 mb-4 text-xl font-bold text-gray-900 tracking-tight">Human Availability</h2>
+      <div className="p-5 md:p-8 h-full flex flex-col overflow-auto box-border bg-gray-50/30">
+        <div className="flex items-center gap-4 mb-4">
+          <ResourceTabs active="Human Availability" />
+        </div>
 
-        <ResourceTabs active="Human Availability" />
+        <div className="flex gap-2 mb-6">
+          <button onClick={() => setViewMode('TA')} className={`px-5 py-2 rounded-full text-sm font-semibold transition-colors border ${viewMode === 'TA' ? 'bg-[#006A4E] text-white border-[#006A4E]' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>
+            Technical Assistants
+          </button>
+          <button onClick={() => setViewMode('Labour')} className={`px-5 py-2 rounded-full text-sm font-semibold transition-colors border ${viewMode === 'Labour' ? 'bg-[#006A4E] text-white border-[#006A4E]' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>
+            Labourers
+          </button>
+          {viewMode === 'Labour' && (
+            <button onClick={() => setShowAddLabourModal(true)} className="ml-auto bg-green-600 text-white px-5 py-2 rounded-full text-sm font-semibold hover:bg-green-700 transition-colors shadow-sm">
+              + Add Labourer
+            </button>
+          )}
+        </div>
 
+<<<<<<< HEAD
         <div className="flex gap-2 mb-4 shrink-0">
           <button onClick={() => setPersonType("TA")}
             className={`px-4 py-1.5 rounded-full text-sm font-semibold border transition-colors ${personType === "TA" ? "bg-[#006B33] text-white border-[#006B33]" : "bg-white text-gray-600 border-gray-300 hover:bg-gray-50"}`}>
@@ -168,19 +270,33 @@ export default function HumanAvailability() {
             {todaysLeaves.length > 0 && (
               <p className="m-0 text-xs font-semibold text-yellow-700 bg-yellow-100 w-fit px-2 py-0.5 rounded-full">{todaysLeaves.length} On Leave Today</p>
             )}
+=======
+        {error && <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 font-medium">{error}</div>}
+
+        <div className="flex flex-col md:flex-row gap-4 mb-6 shrink-0">
+          <div className="flex-1 bg-[#F5FCF8] rounded-xl p-5 shadow-sm border border-[#E2F2E9]">
+            <p className="m-0 mb-2 text-sm text-gray-600 font-medium">{viewMode === 'TA' ? 'Technical Assistants' : 'Labourers'}</p>
+            <p className="m-0 font-bold text-xl text-gray-900">{currentTotal - todaysLeaves.length} / {currentTotal} Available Today</p>
+>>>>>>> 6fbbe5374139ecab1b933ca3bdcf9f0787ff6be5
           </div>
-          <div className="flex-[1.4] bg-green-50 rounded-xl p-4 md:p-5 shadow-sm border border-green-100">
-            <p className="m-0 mb-2 text-sm text-gray-700 font-semibold">Today's Leave Details:</p>
+          <div className="flex-[1.4] bg-[#F5FCF8] rounded-xl p-5 shadow-sm border border-[#E2F2E9]">
+            <p className="m-0 mb-3 text-sm text-gray-700 font-semibold">Today's Leave Details:</p>
             {todaysLeaves.length === 0 ? (
-              <p className="m-0 text-xs text-gray-500">No one is on leave today.</p>
+              <p className="m-0 text-sm text-gray-500">No one is on leave today.</p>
             ) : todaysLeaves.map((l) => (
+<<<<<<< HEAD
               <p key={l.availability_id} className="m-0 mb-1 text-xs text-gray-700 flex items-center gap-1.5">
                 <span className="w-1.5 h-1.5 rounded-full bg-yellow-500"></span> {l.full_name} {l.reason ? `(${l.reason})` : ''}
+=======
+              <p key={l.availability_id} className="m-0 mb-1.5 text-sm text-gray-700 flex items-center gap-2">
+                <span className="w-2 h-2 rounded-sm bg-yellow-400"></span> {l.full_name} {l.reason ? `(${l.reason})` : ''}
+>>>>>>> 6fbbe5374139ecab1b933ca3bdcf9f0787ff6be5
               </p>
             ))}
           </div>
         </div>
 
+<<<<<<< HEAD
         <div className="flex flex-col lg:flex-row gap-4">
           <div className="border border-gray-200 rounded-xl p-4 md:p-5 bg-white shrink-0 shadow-sm lg:flex-[2]">
             <div className="flex justify-between items-center mb-3">
@@ -230,12 +346,77 @@ export default function HumanAvailability() {
                     {!holiday && leaves.length > 2 && (
                       <span className="px-1.5 text-yellow-800 font-semibold">+{leaves.length - 2} more</span>
                     )}
+=======
+        <div className="flex flex-col xl:flex-row gap-6 shrink-0">
+          {/* Calendar Section */}
+          <div className="flex-[2] border border-gray-200 rounded-xl p-5 bg-white shadow-sm">
+            <div className="flex justify-between items-center mb-6">
+              <button onClick={() => setViewMode((m) => m)} className="invisible">◀</button> {/* spacer */}
+              <div className="flex items-center gap-4 w-full justify-between">
+                <button onClick={() => setMonthOffset((m) => m - 1)} className="cursor-pointer border border-gray-300 rounded-md px-3 py-1.5 bg-white hover:bg-gray-50 text-blue-600">◀</button>
+                <h3 className="m-0 text-xl font-bold text-gray-800">{monthLabel}</h3>
+                <button onClick={() => setMonthOffset((m) => m + 1)} className="cursor-pointer border border-gray-300 rounded-md px-3 py-1.5 bg-white hover:bg-gray-50 text-blue-600">▶</button>
+              </div>
+            </div>
+
+            {/* Legend */}
+            <div className="flex items-center gap-4 mb-4 text-xs font-medium text-gray-600">
+              <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-red-600"></span> Holiday</div>
+              <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-yellow-400"></span> On Leave</div>
+              <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm border-2 border-blue-500 bg-white"></span> Today</div>
+            </div>
+
+            <div className="grid grid-cols-7 text-center text-gray-500 mb-3 text-sm font-semibold">
+              {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => <div key={d}>{d}</div>)}
+            </div>
+
+            <div className="grid grid-cols-7 gap-2" style={{ gridTemplateRows: `repeat(${cells.length / 7}, 100px)` }}>
+              {loading ? (
+                <div className="col-span-7 flex items-center justify-center text-gray-400">Loading...</div>
+              ) : cells.map((cell, i) => {
+                const cellDateStr = cell.currentMonth && cell.date ? toISODate(cell.date) : null;
+                const leaves = cell.currentMonth && cellDateStr ? (leavesByDate[cellDateStr] || []) : [];
+                const holiday = cell.currentMonth && cellDateStr ? holidaysByDate[cellDateStr] : null;
+                const isToday = cellDateStr === todayKey;
+                
+                // Styling
+                let cellClasses = "flex flex-col items-start justify-start rounded-lg p-2 transition-colors border ";
+                if (!cell.currentMonth) {
+                  cellClasses += "bg-white text-gray-300 border-transparent";
+                } else if (holiday) {
+                  cellClasses += "bg-red-600 text-white border-red-700 cursor-pointer shadow-sm"; 
+                } else {
+                  cellClasses += "bg-white text-gray-800 border-gray-100 hover:border-gray-300 hover:shadow-sm cursor-pointer";
+                }
+                
+                // Highlight today
+                if (isToday) {
+                  cellClasses += " border-2 !border-blue-500";
+                }
+
+                return (
+                  <div key={i} onClick={() => cell.currentMonth && openDay(cell)} className={cellClasses}>
+                    <span className={`font-bold text-sm mb-1 ${!cell.currentMonth ? 'text-gray-300' : holiday ? 'text-white' : 'text-gray-900'}`}>{cell.day}</span>
+                    
+                    {holiday && (
+                      <span className="px-1.5 py-0.5 rounded text-xs font-medium truncate w-full mb-0.5 bg-white/20 text-white">
+                        {holiday.reason || 'Holiday'}
+                      </span>
+                    )}
+
+                    {!holiday && leaves.slice(0, 3).map((l) => (
+                      <span key={l.availability_id} className="px-1.5 py-0.5 rounded text-xs font-medium truncate w-full mb-0.5 bg-yellow-100 text-yellow-800">
+                        {l.full_name}
+                      </span>
+                    ))}
+>>>>>>> 6fbbe5374139ecab1b933ca3bdcf9f0787ff6be5
                   </div>
                 );
               })}
             </div>
           </div>
 
+<<<<<<< HEAD
           {isLabour && (
             <div className="border border-gray-200 rounded-xl p-4 md:p-5 bg-white shrink-0 shadow-sm lg:flex-1">
               <div className="flex justify-between items-center mb-3">
@@ -272,6 +453,23 @@ export default function HumanAvailability() {
               </div>
             </div>
           )}
+=======
+          {/* Roster Section */}
+          <div className="flex-1 border border-gray-200 rounded-xl p-5 bg-white shadow-sm flex flex-col">
+            <h3 className="m-0 text-base font-bold text-gray-900 mb-4">{viewMode === 'TA' ? 'TA Roster' : 'Labour Roster'}</h3>
+            <div className="flex flex-col gap-4 overflow-y-auto max-h-[500px] pr-2">
+              {(viewMode === 'TA' ? safeTas : safeLabours).map((person) => (
+                <div key={person.user_id || person.labour_id} className="flex flex-col">
+                  <span className="font-semibold text-sm text-gray-900">{person.full_name || person.name}</span>
+                  <span className="text-xs text-gray-500">{person.phone || 'No phone number'}</span>
+                </div>
+              ))}
+              {(viewMode === 'TA' ? safeTas.length : safeLabours.length) === 0 && (
+                <p className="text-sm text-gray-500">No records found.</p>
+              )}
+            </div>
+          </div>
+>>>>>>> 6fbbe5374139ecab1b933ca3bdcf9f0787ff6be5
         </div>
       </div>
 
@@ -283,6 +481,7 @@ export default function HumanAvailability() {
               <button onClick={closeModal} className="bg-transparent border-none cursor-pointer hover:bg-gray-100 p-1.5 rounded-full transition-colors"><X size={20} className="text-gray-500" /></button>
             </div>
 
+<<<<<<< HEAD
             {selectedDayHoliday && (
               <div className="mb-4 rounded-lg bg-red-50 border border-red-200 px-3 py-2 text-sm text-red-700 font-medium">
                 Holiday: {selectedDayHoliday.reason}
@@ -310,6 +509,15 @@ export default function HumanAvailability() {
             <select value={draftPersonId} onChange={(e) => setDraftPersonId(e.target.value)}
               className="w-full rounded-lg border border-gray-300 p-2.5 text-sm mb-4 outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500">
               {activePeople.map((p) => <option key={p[personIdKey]} value={p[personIdKey]}>{p.full_name}</option>)}
+=======
+            <p className="text-sm text-gray-600 mb-1.5 font-medium">{viewMode === 'TA' ? 'Technical Assistant:' : 'Labour:'}</p>
+            <select value={draftUserId} onChange={(e) => setDraftUserId(e.target.value)}
+              className="w-full rounded-lg border border-gray-300 p-2.5 text-sm mb-4 outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500">
+              {viewMode === 'TA' 
+                ? safeTas.map((t) => <option key={t.user_id} value={t.user_id}>{t.full_name}</option>)
+                : safeLabours.map((l) => <option key={l.labour_id} value={l.labour_id}>{l.name}</option>)
+              }
+>>>>>>> 6fbbe5374139ecab1b933ca3bdcf9f0787ff6be5
             </select>
 
             <p className="text-sm text-gray-600 mb-1.5 font-medium">Reason (if on leave):</p>
@@ -328,6 +536,7 @@ export default function HumanAvailability() {
         </div>
       )}
 
+<<<<<<< HEAD
       {showRosterModal && (
         <div onClick={() => setShowRosterModal(false)} className="fixed inset-0 bg-black/40 backdrop-blur-sm z-[100] flex items-center justify-center p-4">
           <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-xl max-w-sm w-full p-6 shadow-xl relative">
@@ -349,6 +558,34 @@ export default function HumanAvailability() {
               <button type="submit" disabled={rosterSaving} className="w-full bg-[#006B33] text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-green-700 disabled:opacity-60">
                 {rosterSaving ? 'Adding...' : 'Add Labourer'}
               </button>
+=======
+      {showAddLabourModal && (
+        <div onClick={() => setShowAddLabourModal(false)} className="fixed inset-0 bg-black/40 backdrop-blur-sm flex items-center justify-center z-[100]">
+          <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-2xl p-6 w-[380px] shadow-xl">
+            <div className="flex justify-between items-center mb-4">
+              <h3 className="m-0 text-lg font-bold text-gray-900">Add New Labour</h3>
+              <button onClick={() => setShowAddLabourModal(false)} className="bg-transparent border-none cursor-pointer hover:bg-gray-100 p-1.5 rounded-full transition-colors"><X size={20} className="text-gray-500" /></button>
+            </div>
+
+            <form onSubmit={handleAddLabour}>
+              <p className="text-sm text-gray-600 mb-1.5 font-medium">Labour Name:</p>
+              <input 
+                value={newLabourName} 
+                onChange={(e) => setNewLabourName(e.target.value)} 
+                placeholder="e.g. Sunil Perera"
+                autoFocus
+                className="w-full rounded-lg border border-gray-300 p-2.5 text-sm mb-5 outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500" 
+              />
+
+              <div className="flex gap-2.5">
+                <button type="button" onClick={() => setShowAddLabourModal(false)} className="flex-1 p-2.5 rounded-lg font-semibold text-sm border border-gray-300 bg-white text-gray-700 hover:bg-gray-50 transition-colors">
+                  Cancel
+                </button>
+                <button type="submit" disabled={!newLabourName.trim()} className="flex-1 p-2.5 rounded-lg font-semibold text-sm border border-transparent bg-green-600 text-white hover:bg-green-700 transition-colors disabled:opacity-50">
+                  Save
+                </button>
+              </div>
+>>>>>>> 6fbbe5374139ecab1b933ca3bdcf9f0787ff6be5
             </form>
           </div>
         </div>

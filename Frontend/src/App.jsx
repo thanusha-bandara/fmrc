@@ -20,6 +20,7 @@ import WaterSchedule from './page/ResourceManagement/WaterSchedule';
 import WeatherConditions from './page/ResourceManagement/WeatherConditions';
 import FieldAvailability from './page/ResourceManagement/FieldAvailability';
 import HumanAvailability from './page/ResourceManagement/HumanAvailability';
+import FieldSeasons from './page/ResourceManagement/FieldSeasons';
 
 function ProtectedLayout() {
   const isAuthenticated = Boolean(localStorage.getItem('token'));
@@ -101,6 +102,10 @@ const router = createBrowserRouter([
       {
         path: "resource-management/field-availability",
         element: <FieldAvailability />
+      },
+      {
+        path: "resource-management/field-seasons",
+        element: <FieldSeasons />
       },
       {
         path: "resource-management/human-availability",

@@ -13,22 +13,7 @@
   "scripts": {
 
     "start": "nodemon server.js",
-
-    "createdb": "node scripts/create_db.js",
-
     "initdb": "node scripts/initdb.js",
-
-    "seed:admin": "node scripts/seedAdmin.js",
-
-    "seed:standard-tests": "node scripts/seed_standard_tests.js",
-
-    "seed:test-schemas": "node scripts/seed_test_schemas.js",
-
-    "migrate:test-schemas": "node scripts/migrate_add_test_schemas.js",
-
-    "migrate:final-report-fields": "node scripts/migrate_add_final_report_fields.js",
-
-    "migrate:final-report-workflow": "node scripts/migrate_add_final_report_workflow.js",
 
     "test": "echo \"Error: no test specified\" && exit 1"
 

@@ -34,24 +34,23 @@ export const updateLabour = async (labourId, { full_name, phone, is_active }) =>
     );
     return findLabourById(labourId);
 };
+    if (from) {
+        conditions.push("la.date >= ?");
+        params.push(from);
+    }
+    if (to) {
+        conditions.push("la.date <= ?");
+        params.push(to);
+    }
 
-export const deleteLabour = async (labourId) => {
-    const [result] = await db.query(`DELETE FROM Labours WHERE labour_id = ?`, [labourId]);
-    return result.affectedRows > 0;
-};
-
-export const getLabourLeaves = async () => {
-    const [leaves] = await db.query(`
-        SELECT labour_id, DATE_FORMAT(date, '%Y-%m-%d') as leave_date
-        FROM Labour_Availability
-        WHERE is_on_leave = TRUE
-    `);
-    return leaves;
-};
-
-// Used by the scheduler to know the total headcount pool available on a given day
-// (total active labourers minus those on leave that day) — no identity tracking needed.
-export const getActiveLabourCount = async () => {
-    const [rows] = await db.query(`SELECT COUNT(*) AS count FROM Labours WHERE is_active = TRUE`);
-    return rows[0].count;
+    const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+    const [rows] = await db.query(`
+        SELECT la.*, l.name as full_name
+        FROM labour_availability la
+        JOIN labours l ON la.labour_id = l.labour_id
+        ${where}
+        ORDER BY la.date DESC
+    `, params);
+    return rows;
+>>>>>>> 6fbbe5374139ecab1b933ca3bdcf9f0787ff6be5
 };

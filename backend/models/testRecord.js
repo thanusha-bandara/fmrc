@@ -48,7 +48,6 @@ const DETAIL_SELECT = `
         s.scheduled_date,
         s.time_slot,
         s.assigned_ta_id,
-        s.field_id,
         s.status AS schedule_status
     FROM Test_Records tr
     JOIN Machinery m ON tr.machine_id = m.machine_id

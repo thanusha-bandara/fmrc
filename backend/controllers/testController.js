@@ -9,7 +9,6 @@ import {
     deleteTestRecord
 } from "../models/testRecord.js";
 import { generateMachineReport } from "../services/reportService.js";
-import { estimateCompletion } from "../services/estimationService.js";
 
 // Admin / Mechanical Engineer: register a new test request against a machine.
 // This is what later feeds the Intelligent Scheduler (Chapter 3 of the report).
@@ -208,16 +207,3 @@ export const removeTest = async (req, res) => {
     }
 };
 
-// Rule-Based Predictive Estimation: how long until this test's report is expected.
-export const getEstimate = async (req, res) => {
-    try {
-        const existing = await getTestRecordById(req.params.id);
-        if (!existing) {
-            return res.status(404).json({ success: false, message: "Test record not found." });
-        }
-        const estimate = await estimateCompletion(existing.test_name, Boolean(existing.is_field_test));
-        res.status(200).json({ success: true, estimate });
-    } catch (error) {
-        res.status(500).json({ success: false, message: "Error calculating estimate.", error: error.message });
-    }
-};
