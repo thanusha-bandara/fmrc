@@ -29,6 +29,14 @@ export const setStaffAvailability = (payload) =>
 export const deleteStaffAvailability = (id) =>
     apiClient.delete(`/resources/staff-availability/${id}`).then((r) => r.data);
 
+// Labour availability
+export const listLabourAvailability = (params = {}) =>
+    apiClient.get("/resources/labour-availability", { params }).then((r) => r.data.records);
+export const setLabourAvailability = (payload) =>
+    apiClient.post("/resources/labour-availability", payload).then((r) => r.data.record);
+export const deleteLabourAvailability = (id) =>
+    apiClient.delete(`/resources/labour-availability/${id}`).then((r) => r.data);
+
 // Weather
 export const listWeatherLogs = () => apiClient.get("/weather").then((r) => r.data.logs);
 export const setManualWeather = (date, isRainy) =>

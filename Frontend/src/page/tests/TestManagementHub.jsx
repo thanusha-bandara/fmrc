@@ -33,7 +33,7 @@ function bucketize(tests, role, queueType, userId) {
 }
 
 const CARD_LABELS = {
-  TA: { assigned: 'New Assigned Tests', pending: 'Saved Drafts (In Progress)', completed: 'Submitted & Completed' },
+  TA: { assigned: 'Assigned Tests', pending: 'Saved Drafts (In Progress)', completed: 'Completed Tests' },
   ME: { assigned: 'Assigned Tests (from TA)', pending: 'Pending Tests (Awaiting CE Approval)', completed: 'Completed Tests' },
   CE: { assigned: 'Recommended Tests', pending: 'Non-Recommended Tests', completed: 'Approved Tests' }
 };
@@ -71,7 +71,10 @@ export default function TestManagementHub({ role }) {
             items.slice(0, 3).map((t) => (
               <div key={t.test_id} className="flex items-center justify-between">
                 <div>
-                  <p className="font-bold text-sm text-gray-900">{t.machine_name}</p>
+                  <p className="font-bold text-sm text-gray-900">
+                    {t.machine_name}
+                    {t.machine_model && <span className="font-normal text-gray-500"> ({t.machine_model})</span>}
+                  </p>
                   <p className="text-xs text-gray-500">{t.test_name}</p>
                 </div>
                 {queueType === 'completed' && (

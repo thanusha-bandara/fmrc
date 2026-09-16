@@ -14,14 +14,14 @@ import { generateMachineReport } from "../services/reportService.js";
 // This is what later feeds the Intelligent Scheduler (Chapter 3 of the report).
 export const createTest = async (req, res) => {
     try {
-        const { machine_id, test_name, is_field_test, requires_water, required_season, technical_assistant_id } = req.body;
+        const { machine_id, test_name, is_field_test, requires_water, required_season, technical_assistant_id, required_labour_count } = req.body;
 
         if (!machine_id || !test_name) {
             return res.status(400).json({ success: false, message: "machine_id and test_name are required." });
         }
 
         const test = await createTestRecord({
-            machine_id, test_name, is_field_test, requires_water, required_season, technical_assistant_id
+            machine_id, test_name, is_field_test, requires_water, required_season, technical_assistant_id, required_labour_count
         });
 
         res.status(201).json({ success: true, message: "Test request created successfully.", test });

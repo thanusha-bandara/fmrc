@@ -20,7 +20,7 @@ export default function Machinery() {
   const [form, setForm] = useState({ machine_name: '', model: '', supplier: '', registration_date: '' });
   const [showTestModal, setShowTestModal] = useState(false);
   const [activeMachine, setActiveMachine] = useState(null);
-  const [testForm, setTestForm] = useState({ test_name: '', is_field_test: true, requires_water: false, required_season: 'Any' });
+  const [testForm, setTestForm] = useState({ test_name: '', is_field_test: true, requires_water: false, required_season: 'Any', required_labour_count: 0 });
 
   // Expanding rows state
   const [expandedMachine, setExpandedMachine] = useState(null);
@@ -139,7 +139,7 @@ export default function Machinery() {
         ...testForm
       });
       setShowTestModal(false);
-      setTestForm({ test_name: '', is_field_test: true, requires_water: false, required_season: 'Any' });
+      setTestForm({ test_name: '', is_field_test: true, requires_water: false, required_season: 'Any', required_labour_count: 0 });
       
       // Clear cache for this machine and reload machines
       setMachineTests((prev) => {
@@ -442,6 +442,12 @@ export default function Machinery() {
                 <label className="block text-sm text-gray-600 mb-1">Test Name *</label>
                 <input required value={testForm.test_name} onChange={(e) => setTestForm({ ...testForm, test_name: e.target.value })}
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20" placeholder="e.g. Engine Performance Test" />
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Required Labour Count</label>
+                <input type="number" min="0" value={testForm.required_labour_count}
+                  onChange={(e) => setTestForm({ ...testForm, required_labour_count: Math.max(0, Number(e.target.value)) })}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20" placeholder="e.g. 5" />
               </div>
               <div className="flex items-center gap-2">
                 <input type="checkbox" checked={testForm.is_field_test} onChange={(e) => setTestForm({ ...testForm, is_field_test: e.target.checked })} id="is_field_test" />

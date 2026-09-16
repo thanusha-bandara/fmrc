@@ -3,6 +3,7 @@ import { runGA } from '../services/geneticAlgorithmService.js';
 import { getRainyDates } from '../services/weatherService.js';
 import { getCurrentSeason } from '../models/field.js';
 import { getTechnicalAssistants, getTALeaves } from '../models/user.js';
+import { getActiveLabourCount, getLabourLeaves } from '../models/labour.js';
 import { getPendingTests } from '../models/testRecord.js';
 import { getCustomHolidays } from '../models/calendar.js';
 import { persistSchedule } from '../services/autoScheduleService.js';
@@ -19,6 +20,8 @@ export const generateSchedule = async (req, res) => {
         // Fetch active Technical Assistants
         const tas = await getTechnicalAssistants();
         const taLeaves = await getTALeaves();
+        const totalLabourCount = await getActiveLabourCount();
+        const labourLeaves = await getLabourLeaves();
 
         // Fetch rainy dates from OpenWeatherMap API
         const rainyDates = await getRainyDates();
