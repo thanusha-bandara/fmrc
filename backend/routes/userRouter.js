@@ -9,7 +9,8 @@ import {
     updateMyProfile,
     changePassword,
     deactivateUser,
-    removeUser
+    removeUser,
+    resetPassword
 } from "../controllers/userController.js";
 import { authenticate, authorize } from "../middlware/auth.js";
 
@@ -17,6 +18,7 @@ const router = express.Router();
 
 // Public
 router.post("/login", login);
+router.post("/reset-password", resetPassword);
 
 // Authenticated (any role)
 router.get("/me", authenticate, getMe);

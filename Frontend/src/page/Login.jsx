@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { User, Lock, Eye, EyeOff, ArrowRight, ShieldCheck, Phone } from "lucide-react";
 import loginBg from "../assets/login.jpg";
 import fmrcLogo from "../assets/FMRClogo.png";
@@ -130,9 +130,9 @@ export default function FMRCLogin() {
           </form>
 
           <div className="mt-6 pt-5 border-t border-gray-200 flex items-center justify-between text-xs">
-            <a href="#" className="text-[#1a6b3c] font-medium hover:underline">
+            <Link to="/forgot-password" className="text-[#1a6b3c] font-medium hover:underline">
               Forgot Password?
-            </a>
+            </Link>
             <a href="#" className="flex items-center gap-1 text-gray-500 hover:text-gray-700">
               <Phone size={12} /> System Administrator Contact
             </a>

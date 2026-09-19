@@ -14,6 +14,12 @@ import {
 
 const SALT_ROUNDS = 10;
 
+// Requires at least 8 characters, one uppercase letter, one lowercase letter, one number,
+// and one special character.
+const STRONG_PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+const PASSWORD_REQUIREMENTS_MESSAGE =
+    "Password must be at least 8 characters long and include an uppercase letter, a lowercase letter, a number, and a special character.";
+
 const signToken = (user) => {
     return jwt.sign(
         { user_id: user.user_id, role: user.role, full_name: user.full_name },
@@ -60,6 +66,35 @@ export const login = async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ success: false, message: "Error logging in.", error: error.message });
+    }
+};
+
+// Public: reset a forgotten password directly by username. No email/token step -- the user
+// enters their username and a new password, and it's applied immediately.
+export const resetPassword = async (req, res) => {
+    try {
+        const { username, newPassword } = req.body;
+        if (!username || !newPassword) {
+            return res.status(400).json({ success: false, message: "Username and new password are required." });
+        }
+        if (!STRONG_PASSWORD_PATTERN.test(newPassword)) {
+            return res.status(400).json({ success: false, message: PASSWORD_REQUIREMENTS_MESSAGE });
+        }
+
+        const user = await findUserByUsernameOrEmail(username);
+        if (!user) {
+            return res.status(404).json({ success: false, message: "No account found with that username." });
+        }
+        if (!user.is_active) {
+            return res.status(403).json({ success: false, message: "This account has been deactivated. Contact the System Administrator." });
+        }
+
+        const password_hash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+        await updateUserPassword(user.user_id, password_hash);
+
+        res.status(200).json({ success: true, message: "Password has been reset successfully. You can now sign in." });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Error resetting password.", error: error.message });
     }
 };
 
@@ -174,8 +209,8 @@ export const changePassword = async (req, res) => {
         if (!currentPassword || !newPassword) {
             return res.status(400).json({ success: false, message: "currentPassword and newPassword are required." });
         }
-        if (newPassword.length < 8) {
-            return res.status(400).json({ success: false, message: "New password must be at least 8 characters long." });
+        if (!STRONG_PASSWORD_PATTERN.test(newPassword)) {
+            return res.status(400).json({ success: false, message: PASSWORD_REQUIREMENTS_MESSAGE });
         }
 
         const [rawUser] = await db.query(

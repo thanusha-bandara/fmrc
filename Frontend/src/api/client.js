@@ -24,8 +24,9 @@ apiClient.interceptors.response.use(
         if (!error.response || error.code === 'ERR_NETWORK') {
             const config = error.config;
             
-            // Do not intercept authentication requests (login, etc)
-            if (config && config.url && config.url.includes('/auth/')) {
+            // Do not intercept authentication requests (login, password reset, etc) -- these
+            // must fail immediately rather than being queued for later background replay.
+            if (config && config.url && (config.url.includes('/login') || config.url.includes('/reset-password'))) {
                 return Promise.reject(new Error("Internet connection is required to login."));
             }
 
@@ -51,7 +52,10 @@ apiClient.interceptors.response.use(
             }
         }
 
-        if (error.response?.status === 401) {
+        // A 401 from a background offline-sync replay (a stale/invalid queued request) must
+        // not log out the current, actively-authenticated session -- only a 401 from a live,
+        // user-initiated request means the current token itself is invalid/expired.
+        if (error.response?.status === 401 && !error.config?.__isSync) {
             localStorage.removeItem("token");
             localStorage.removeItem("userRole");
             localStorage.removeItem("userName");

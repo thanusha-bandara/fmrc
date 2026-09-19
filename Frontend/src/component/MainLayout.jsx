@@ -4,16 +4,27 @@ import {
   Menu, Bell, Cloud, CloudCheck, CloudOff, User,
   LayoutDashboard, Wrench, ClipboardList,
   SlidersHorizontal, Calendar as CalendarIcon,
-  HelpCircle, X, Users, FileCheck2
+  HelpCircle, X, Users, FileCheck2, Eye, EyeOff, ArrowRight
 } from 'lucide-react';
 import fmrcLogo from '../assets/FMRClogo.png';
 import { syncOfflineData } from '../api/syncManager';
 import { db } from '../db/offlineDB';
+import { changeMyPassword } from '../api/auth';
+import { getErrorMessage } from '../api/client';
+import { PASSWORD_PATTERN, PASSWORD_REQUIREMENTS_MESSAGE } from '../utils/password';
 
 export default function MainLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
+  const [showChangePasswordModal, setShowChangePasswordModal] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPasswordFields, setShowPasswordFields] = useState(false);
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [passwordLoading, setPasswordLoading] = useState(false);
   const [syncState, setSyncState] = useState('synced'); // 'synced', 'offline', 'syncing', 'error'
   const [pendingCount, setPendingCount] = useState(0);
   
@@ -74,6 +85,43 @@ export default function MainLayout() {
     name: userName,
     roleTitle: getRoleName(userRole),
     avatar: "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=150&q=80"
+  };
+
+  const closeChangePasswordModal = () => {
+    setShowChangePasswordModal(false);
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setPasswordError('');
+    setPasswordSuccess(false);
+  };
+
+  const handleChangePassword = async (e) => {
+    e.preventDefault();
+    setPasswordError('');
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordError('Please fill in all fields.');
+      return;
+    }
+    if (!PASSWORD_PATTERN.test(newPassword)) {
+      setPasswordError(PASSWORD_REQUIREMENTS_MESSAGE);
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      setPasswordError('Passwords do not match.');
+      return;
+    }
+
+    setPasswordLoading(true);
+    try {
+      await changeMyPassword(currentPassword, newPassword);
+      setPasswordSuccess(true);
+    } catch (err) {
+      setPasswordError(getErrorMessage(err, 'Failed to change password.'));
+    } finally {
+      setPasswordLoading(false);
+    }
   };
 
 
@@ -148,8 +196,12 @@ export default function MainLayout() {
                    <p className="text-sm font-bold text-gray-900 truncate">{currentUser.name}</p>
                    <p className="text-xs text-gray-500 font-medium truncate">{currentUser.roleTitle}</p>
                 </div>
-                <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Change Photo</button>
-                <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Change Password</button>
+                <button
+                  onClick={() => { setShowUserMenu(false); setShowChangePasswordModal(true); }}
+                  className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                >
+                  Change Password
+                </button>
                 <div className="border-t border-gray-100 my-1"></div>
                 <button onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('userRole'); localStorage.removeItem('userName'); localStorage.removeItem('userId'); window.location.href = '/login'; }} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 font-medium">Log Out</button>
               </div>
@@ -217,6 +269,108 @@ export default function MainLayout() {
               <p>• <strong>Sidebar</strong>: Switch between modules.</p>
               <p>• <strong>System Synced</strong>: Shows offline IndexedDB data synchronization state.</p>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Change Password Modal */}
+      {showChangePasswordModal && (
+        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl relative">
+            <button
+              onClick={closeChangePasswordModal}
+              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700"
+            >
+              <X size={20} />
+            </button>
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Change Password</h3>
+
+            {passwordSuccess ? (
+              <div className="space-y-4">
+                <div className="rounded-md border border-green-200 bg-green-50 px-3.5 py-3 text-sm text-green-800">
+                  Your password has been changed successfully.
+                </div>
+                <button
+                  type="button"
+                  onClick={closeChangePasswordModal}
+                  className="w-full flex items-center justify-center gap-2 rounded-md bg-[#1a6b3c] hover:bg-[#155530] text-white font-semibold py-2.5 text-sm transition"
+                >
+                  Done
+                </button>
+              </div>
+            ) : (
+              <form onSubmit={handleChangePassword} className="space-y-4">
+                {passwordError && (
+                  <div className="rounded-md border border-red-200 bg-red-50 px-3.5 py-2.5 text-sm text-red-700 font-medium">
+                    {passwordError}
+                  </div>
+                )}
+
+                <div>
+                  <label htmlFor="currentPassword" className="block text-sm text-gray-600 mb-1.5">
+                    Current Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="currentPassword"
+                      type={showPasswordFields ? "text" : "password"}
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full rounded-md border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-700 placeholder-gray-400 outline-none focus:border-[#1a6b3c] focus:ring-2 focus:ring-[#1a6b3c]/20 transition"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label htmlFor="newPasswordField" className="block text-sm text-gray-600 mb-1.5">
+                    New Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="newPasswordField"
+                      type={showPasswordFields ? "text" : "password"}
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      placeholder="••••••••"
+                      className="w-full rounded-md border border-gray-300 bg-white px-3.5 py-2.5 pr-16 text-sm text-gray-700 placeholder-gray-400 outline-none focus:border-[#1a6b3c] focus:ring-2 focus:ring-[#1a6b3c]/20 transition"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPasswordFields((s) => !s)}
+                      className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center gap-1 text-xs font-medium text-[#1a6b3c] hover:text-[#134f2c]"
+                    >
+                      {showPasswordFields ? <EyeOff size={14} /> : <Eye size={14} />}
+                      {showPasswordFields ? "Hide" : "Show"}
+                    </button>
+                  </div>
+                  <p className="mt-1.5 text-[11px] text-gray-400">{PASSWORD_REQUIREMENTS_MESSAGE}</p>
+                </div>
+
+                <div>
+                  <label htmlFor="confirmPasswordField" className="block text-sm text-gray-600 mb-1.5">
+                    Confirm New Password
+                  </label>
+                  <input
+                    id="confirmPasswordField"
+                    type={showPasswordFields ? "text" : "password"}
+                    value={confirmPassword}
+                    onChange={(e) => setConfirmPassword(e.target.value)}
+                    placeholder="••••••••"
+                    className="w-full rounded-md border border-gray-300 bg-white px-3.5 py-2.5 text-sm text-gray-700 placeholder-gray-400 outline-none focus:border-[#1a6b3c] focus:ring-2 focus:ring-[#1a6b3c]/20 transition"
+                  />
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={passwordLoading}
+                  className="w-full flex items-center justify-center gap-2 rounded-md bg-[#1a6b3c] hover:bg-[#155530] text-white font-semibold py-2.5 text-sm transition disabled:opacity-70"
+                >
+                  {passwordLoading ? "Saving..." : "Change Password"}
+                  {!passwordLoading && <ArrowRight size={16} />}
+                </button>
+              </form>
+            )}
           </div>
         </div>
       )}

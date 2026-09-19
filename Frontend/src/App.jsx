@@ -7,6 +7,7 @@ import AssignedTests from './page/AssignedTests';
 import PendingTests from './page/PendingTests';
 import CompletedTests from './page/CompletedTests';
 import Login from './page/Login';
+import ForgotPassword from './page/ForgotPassword';
 import Machinery from './page/Machinery';
 import AdminUserManagement from './page/AdminUserManagement';
 import FinalizeReport from './page/tests/FinalizeReport';
@@ -34,6 +35,10 @@ const router = createBrowserRouter([
   {
     path: "/login",
     element: <Login />
+  },
+  {
+    path: "/forgot-password",
+    element: <ForgotPassword />
   },
   {
     path: "/",
