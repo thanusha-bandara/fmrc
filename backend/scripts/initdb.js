@@ -10,9 +10,14 @@ const createTables = async () => {
     await db.query(`DROP TABLE IF EXISTS Schedules`);
     await db.query(`DROP TABLE IF EXISTS Test_Records`);
     await db.query(`DROP TABLE IF EXISTS Test_Form_Schemas`);
+    await db.query(`DROP TABLE IF EXISTS Resource_Audit_Log`);
     await db.query(`DROP TABLE IF EXISTS Staff_Availability`);
     await db.query(`DROP TABLE IF EXISTS Weather_Logs`);
     await db.query(`DROP TABLE IF EXISTS FMRC_Calendar`);
+    await db.query(`DROP TABLE IF EXISTS farm_seasons`);
+    await db.query(`DROP TABLE IF EXISTS farm_daily_status`);
+    await db.query(`DROP TABLE IF EXISTS labour_availability`);
+    await db.query(`DROP TABLE IF EXISTS labours`);
     await db.query(`DROP TABLE IF EXISTS Field_Status`);
     await db.query(`DROP TABLE IF EXISTS Machinery`);
     await db.query(`DROP TABLE IF EXISTS Users`);
@@ -33,12 +38,15 @@ const createTables = async () => {
     `);
     console.log("Users table created.");
 
-    // FMRC Calendar Table (holidays / special non-working days)
+    // FMRC Calendar Table (holidays / special non-working days).
+    // After a fresh reset, run `node scripts/addGovHolidays2026.js` to seed the
+    // official Sri Lanka public holidays (holiday_type = 'Government').
     await db.query(`
       CREATE TABLE IF NOT EXISTS FMRC_Calendar (
         calendar_id INT AUTO_INCREMENT PRIMARY KEY,
         date DATE NOT NULL UNIQUE,
         reason VARCHAR(255),
+        holiday_type ENUM('Government', 'FMRC') NOT NULL DEFAULT 'FMRC',
         is_holiday BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       ) ENGINE=InnoDB
@@ -82,6 +90,51 @@ const createTables = async () => {
     `);
     console.log("Field_Status table created.");
 
+    // Global farm daily status and season periods (used by Resource
+    // Management's Field Availability / Current Season pages).
+    await db.query(`
+    CREATE TABLE IF NOT EXISTS farm_daily_status (
+    date DATE NOT NULL PRIMARY KEY,
+    is_field_available BOOLEAN DEFAULT TRUE,
+    is_water_available BOOLEAN DEFAULT FALSE
+   ) ENGINE=InnoDB
+    `);
+    console.log("farm_daily_status table created.");
+
+    await db.query(`
+    CREATE TABLE IF NOT EXISTS farm_seasons (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    season_type VARCHAR(50) NOT NULL,
+    start_date DATE NOT NULL,
+    end_date DATE NOT NULL
+   ) ENGINE=InnoDB
+    `);
+    console.log("farm_seasons table created.");
+
+    // Labourers (distinct from Users/Technical Assistants) and their leave records.
+    await db.query(`
+    CREATE TABLE IF NOT EXISTS labours (
+    labour_id INT AUTO_INCREMENT PRIMARY KEY,
+    name VARCHAR(150) NOT NULL,
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+   ) ENGINE=InnoDB
+    `);
+    console.log("labours table created.");
+
+    await db.query(`
+    CREATE TABLE IF NOT EXISTS labour_availability (
+    availability_id INT AUTO_INCREMENT PRIMARY KEY,
+    labour_id INT NOT NULL,
+    date DATE NOT NULL,
+    is_on_leave BOOLEAN DEFAULT FALSE,
+    reason VARCHAR(255) NULL,
+    UNIQUE KEY unique_labour_date (labour_id, date),
+    FOREIGN KEY (labour_id) REFERENCES labours(labour_id) ON DELETE CASCADE
+   ) ENGINE=InnoDB
+    `);
+    console.log("labour_availability table created.");
+
         // 2,staf_ availability
 
     await db.query(`
@@ -97,7 +150,22 @@ const createTables = async () => {
     `);
     console.log("Staff_Availability table created.");
 
-    //3,weather logs 
+    // Audit trail for Resource Management changes -- who changed what, and
+    // when. DB-only; never shown in the UI.
+    await db.query(`
+    CREATE TABLE IF NOT EXISTS Resource_Audit_Log (
+    log_id INT AUTO_INCREMENT PRIMARY KEY,
+    user_id INT NOT NULL,
+    full_name VARCHAR(150) NOT NULL,
+    action VARCHAR(100) NOT NULL,
+    details TEXT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES Users(user_id) ON DELETE CASCADE
+    ) ENGINE=InnoDB;
+    `);
+    console.log("Resource_Audit_Log table created.");
+
+    //3,weather logs
 
     await db.query(`
     CREATE TABLE IF NOT EXISTS Weather_Logs (

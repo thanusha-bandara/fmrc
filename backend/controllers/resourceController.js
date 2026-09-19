@@ -1,6 +1,7 @@
 import { listFarmDailyStatus, setFarmDailyStatus, getFarmSeasons, setFarmSeason, deleteFarmSeason } from "../models/field.js";
 import { setStaffAvailability, listStaffAvailability, deleteStaffAvailability } from "../models/staffAvailability.js";
 import { runAutomaticScheduling } from "../services/autoScheduleService.js";
+import { logResourceAudit } from "../models/auditLog.js";
 
 // ---- Farm Global Availability & Seasons ----
 
@@ -22,6 +23,7 @@ export const setFarmDailyStatusController = async (req, res) => {
         }
         const record = await setFarmDailyStatus(date, isFieldAvailable ?? true, isWaterAvailable ?? false);
         runAutomaticScheduling();
+        logResourceAudit(req, "set_farm_daily_status", { date, isFieldAvailable, isWaterAvailable });
         res.status(200).json({ success: true, message: "Farm daily status updated.", record });
     } catch (error) {
         res.status(500).json({ success: false, message: "Error setting farm daily status.", error: error.message });
@@ -45,6 +47,7 @@ export const setFarmSeasonController = async (req, res) => {
         }
         const recordId = await setFarmSeason(seasonType, startDate, endDate);
         runAutomaticScheduling();
+        logResourceAudit(req, "add_farm_season", { seasonType, startDate, endDate });
         res.status(200).json({ success: true, message: "Farm season added.", id: recordId });
     } catch (error) {
         res.status(500).json({ success: false, message: "Error setting farm season.", error: error.message });
@@ -58,6 +61,7 @@ export const deleteFarmSeasonController = async (req, res) => {
             return res.status(404).json({ success: false, message: "Season not found." });
         }
         runAutomaticScheduling();
+        logResourceAudit(req, "delete_farm_season", { seasonId: req.params.id });
         res.status(200).json({ success: true, message: "Season removed." });
     } catch (error) {
         res.status(500).json({ success: false, message: "Error removing season.", error: error.message });
@@ -86,6 +90,7 @@ export const setAvailability = async (req, res) => {
         }
         const record = await setStaffAvailability(userId, date, isOnLeave, reason);
         runAutomaticScheduling();
+        logResourceAudit(req, "set_staff_availability", { targetUserId: userId, date, isOnLeave, reason });
         res.status(200).json({ success: true, message: "Availability updated. Rescheduling triggered.", record });
     } catch (error) {
         res.status(500).json({ success: false, message: "Error setting availability.", error: error.message });
@@ -98,6 +103,7 @@ export const removeAvailability = async (req, res) => {
         if (!deleted) {
             return res.status(404).json({ success: false, message: "Availability record not found." });
         }
+        logResourceAudit(req, "remove_staff_availability", { availabilityId: req.params.id });
         res.status(200).json({ success: true, message: "Availability record removed." });
     } catch (error) {
         res.status(500).json({ success: false, message: "Error removing availability record.", error: error.message });

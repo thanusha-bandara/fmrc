@@ -6,17 +6,19 @@ import { listUsers } from "../../api/users";
 import { listLabours, listLabourAvailability, setLabourAvailability, createLabour } from "../../api/labours";
 import { getErrorMessage } from "../../api/client";
 import ResourceTabs from "./ResourceTabs";
-import { buildMonthCells, toISODate, formatFullDate } from "./calendarUtils";
+import { buildMonthCells, toISODate, formatFullDate, canEditResources } from "./calendarUtils";
 
 export default function HumanAvailability() {
   const navigate = useNavigate();
+  const canEdit = canEditResources();
   const [monthOffset, setMonthOffset] = useState(0);
   const [records, setRecords] = useState([]);
   const [tas, setTas] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedDay, setSelectedDay] = useState(null);
-  const [draftUserId, setDraftUserId] = useState("");
+  const [draftUserIds, setDraftUserIds] = useState([]);
+  const [originalUserIds, setOriginalUserIds] = useState([]);
   const [draftReason, setDraftReason] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -42,23 +44,12 @@ export default function HumanAvailability() {
         setLabours(labourData);
         setLabourRecords(labourAvData);
         setHolidays(holidayData);
-        
-        // Reset draft user based on active view mode if it's currently empty or invalid
-        if (viewMode === 'TA' && taData.length > 0) setDraftUserId(String(taData[0].user_id));
-        else if (viewMode === 'Labour' && labourData.length > 0) setDraftUserId(String(labourData[0].labour_id));
       })
       .catch((err) => setError(getErrorMessage(err, "Could not load availability data.")))
       .finally(() => setLoading(false));
   };
 
   useEffect(() => { load(); }, []);
-
-  // Whenever viewMode changes, reset the draftUserId to the first available in that list
-  useEffect(() => {
-    if (viewMode === 'TA' && tas.length > 0) setDraftUserId(String(tas[0].user_id));
-    else if (viewMode === 'Labour' && labours.length > 0) setDraftUserId(String(labours[0].labour_id));
-    else setDraftUserId("");
-  }, [viewMode, tas, labours]);
 
   const baseDate = new Date();
   baseDate.setMonth(baseDate.getMonth() + monthOffset, 1);
@@ -92,7 +83,7 @@ export default function HumanAvailability() {
   const today = new Date();
   const todayKey = toISODate(today);
   const todaysLeaves = leavesByDate[todayKey] || [];
-  
+
   const safeTas = Array.isArray(tas) ? tas : [];
   const safeLabours = Array.isArray(labours) ? labours : [];
   const currentTotal = viewMode === 'TA' ? safeTas.length : safeLabours.length;
@@ -100,20 +91,41 @@ export default function HumanAvailability() {
   const openDay = (cell) => {
     setSelectedDay(cell.date);
     setDraftReason("");
+    // Pre-check whoever is already on leave this day, so the modal doubles as
+    // an editor for the day's existing roster instead of only adding new ones.
+    const dateStr = toISODate(cell.date);
+    const idKey = viewMode === 'TA' ? 'user_id' : 'labour_id';
+    const existing = leavesByDate[dateStr] || [];
+    const existingIds = existing.map((r) => String(r[idKey]));
+    setDraftUserIds(existingIds);
+    setOriginalUserIds(existingIds);
   };
 
   const closeModal = () => setSelectedDay(null);
 
-  const saveDay = async (isOnLeave) => {
-    if (!draftUserId) return;
+  const toggleDraftUser = (id) => {
+    const key = String(id);
+    setDraftUserIds((prev) => prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key]);
+  };
+
+  // Diffs against who was originally on leave, since unchecking someone means
+  // "take them off leave" and must still send an explicit isOnLeave=false --
+  // simply omitting them from the save left their old leave record untouched.
+  const saveDay = async () => {
     setSaving(true);
     setError("");
     try {
-      if (viewMode === 'TA') {
-        await setStaffAvailability({ userId: Number(draftUserId), date: toISODate(selectedDay), isOnLeave, reason: draftReason });
-      } else {
-        await setLabourAvailability({ labourId: Number(draftUserId), date: toISODate(selectedDay), isOnLeave, reason: draftReason });
-      }
+      const dateStr = toISODate(selectedDay);
+      const toMarkOnLeave = draftUserIds.filter((id) => !originalUserIds.includes(id));
+      const toMarkAvailable = originalUserIds.filter((id) => !draftUserIds.includes(id));
+      const applyStatus = viewMode === 'TA'
+        ? (id, isOnLeave) => setStaffAvailability({ userId: Number(id), date: dateStr, isOnLeave, reason: draftReason })
+        : (id, isOnLeave) => setLabourAvailability({ labourId: Number(id), date: dateStr, isOnLeave, reason: draftReason });
+
+      await Promise.all([
+        ...toMarkOnLeave.map((id) => applyStatus(id, true)),
+        ...toMarkAvailable.map((id) => applyStatus(id, false)),
+      ]);
       closeModal();
       load();
     } catch (err) {
@@ -139,6 +151,9 @@ export default function HumanAvailability() {
   return (
     <>
       <div className="p-5 md:p-8 h-full flex flex-col overflow-auto box-border bg-gray-50/30">
+        <button onClick={() => navigate("/resource-management")} className="mb-3 cursor-pointer border border-gray-300 bg-white rounded-md px-3.5 py-1.5 w-fit text-sm hover:bg-gray-50 transition-colors">
+          ← Back
+        </button>
         <div className="flex items-center gap-4 mb-4">
           <ResourceTabs active="Human Availability" />
         </div>
@@ -150,7 +165,7 @@ export default function HumanAvailability() {
           <button onClick={() => setViewMode('Labour')} className={`px-5 py-2 rounded-full text-sm font-semibold transition-colors border ${viewMode === 'Labour' ? 'bg-[#006A4E] text-white border-[#006A4E]' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}>
             Labourers
           </button>
-          {viewMode === 'Labour' && (
+          {viewMode === 'Labour' && canEdit && (
             <button onClick={() => setShowAddLabourModal(true)} className="ml-auto bg-green-600 text-white px-5 py-2 rounded-full text-sm font-semibold hover:bg-green-700 transition-colors shadow-sm">
               + Add Labourer
             </button>
@@ -189,8 +204,9 @@ export default function HumanAvailability() {
             </div>
 
             {/* Legend */}
-            <div className="flex items-center gap-4 mb-4 text-xs font-medium text-gray-600">
-              <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-red-600"></span> Holiday</div>
+            <div className="flex items-center gap-4 mb-4 text-xs font-medium text-gray-600 flex-wrap">
+              <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-red-600"></span> FMRC Holiday</div>
+              <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-full bg-blue-600"></span> Government Holiday</div>
               <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-yellow-400"></span> On Leave</div>
               <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm border-2 border-blue-500 bg-white"></span> Today</div>
             </div>
@@ -207,17 +223,25 @@ export default function HumanAvailability() {
                 const leaves = cell.currentMonth && cellDateStr ? (leavesByDate[cellDateStr] || []) : [];
                 const holiday = cell.currentMonth && cellDateStr ? holidaysByDate[cellDateStr] : null;
                 const isToday = cellDateStr === todayKey;
-                
+
+                // A holiday only turns the day red once FMRC has actually confirmed it
+                // as a day off; a known Government holiday that isn't confirmed just
+                // shows blue as a reference (same rule as the FMRC Calendar page).
+                const isConfirmedHoliday = Boolean(holiday?.is_holiday);
+                const isReferenceHoliday = Boolean(holiday) && !isConfirmedHoliday;
+
                 // Styling
                 let cellClasses = "flex flex-col items-start justify-start rounded-lg p-2 transition-colors border ";
                 if (!cell.currentMonth) {
                   cellClasses += "bg-white text-gray-300 border-transparent";
-                } else if (holiday) {
-                  cellClasses += "bg-red-600 text-white border-red-700 cursor-pointer shadow-sm"; 
+                } else if (isConfirmedHoliday) {
+                  cellClasses += "bg-red-600 text-white border-red-700 cursor-pointer shadow-sm";
+                } else if (isReferenceHoliday) {
+                  cellClasses += "bg-blue-600 text-white border-blue-700 cursor-pointer shadow-sm";
                 } else {
                   cellClasses += "bg-white text-gray-800 border-gray-100 hover:border-gray-300 hover:shadow-sm cursor-pointer";
                 }
-                
+
                 // Highlight today
                 if (isToday) {
                   cellClasses += " border-2 !border-blue-500";
@@ -226,14 +250,14 @@ export default function HumanAvailability() {
                 return (
                   <div key={i} onClick={() => cell.currentMonth && openDay(cell)} className={cellClasses}>
                     <span className={`font-bold text-sm mb-1 ${!cell.currentMonth ? 'text-gray-300' : holiday ? 'text-white' : 'text-gray-900'}`}>{cell.day}</span>
-                    
+
                     {holiday && (
                       <span className="px-1.5 py-0.5 rounded text-xs font-medium truncate w-full mb-0.5 bg-white/20 text-white">
                         {holiday.reason || 'Holiday'}
                       </span>
                     )}
 
-                    {!holiday && leaves.slice(0, 3).map((l) => (
+                    {leaves.slice(0, 3).map((l) => (
                       <span key={l.availability_id} className="px-1.5 py-0.5 rounded text-xs font-medium truncate w-full mb-0.5 bg-yellow-100 text-yellow-800">
                         {l.full_name}
                       </span>
@@ -270,27 +294,37 @@ export default function HumanAvailability() {
               <button onClick={closeModal} className="bg-transparent border-none cursor-pointer hover:bg-gray-100 p-1.5 rounded-full transition-colors"><X size={20} className="text-gray-500" /></button>
             </div>
 
-            <p className="text-sm text-gray-600 mb-1.5 font-medium">{viewMode === 'TA' ? 'Technical Assistant:' : 'Labour:'}</p>
-            <select value={draftUserId} onChange={(e) => setDraftUserId(e.target.value)}
-              className="w-full rounded-lg border border-gray-300 p-2.5 text-sm mb-4 outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500">
-              {viewMode === 'TA' 
-                ? safeTas.map((t) => <option key={t.user_id} value={t.user_id}>{t.full_name}</option>)
-                : safeLabours.map((l) => <option key={l.labour_id} value={l.labour_id}>{l.name}</option>)
-              }
-            </select>
+            {!canEdit && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-3">View only — only Technical Assistants can change leave records.</p>}
+
+            <p className="text-sm text-gray-600 mb-1.5 font-medium">{viewMode === 'TA' ? 'Technical Assistants' : 'Labourers'} (select one or more):</p>
+            <div className="w-full rounded-lg border border-gray-300 mb-4 max-h-40 overflow-y-auto divide-y divide-gray-100">
+              {(viewMode === 'TA' ? safeTas : safeLabours).map((person) => {
+                const id = String(viewMode === 'TA' ? person.user_id : person.labour_id);
+                const name = viewMode === 'TA' ? person.full_name : person.name;
+                const checked = draftUserIds.includes(id);
+                return (
+                  <label key={id} className={`flex items-center gap-2.5 p-2.5 text-sm hover:bg-gray-50 ${canEdit ? "cursor-pointer" : ""}`}>
+                    <input type="checkbox" checked={checked} disabled={!canEdit} onChange={() => toggleDraftUser(id)}
+                      className="w-4 h-4 accent-green-600 cursor-pointer disabled:cursor-not-allowed" />
+                    {name}
+                  </label>
+                );
+              })}
+              {(viewMode === 'TA' ? safeTas.length : safeLabours.length) === 0 && (
+                <p className="p-2.5 text-sm text-gray-500 m-0">No records found.</p>
+              )}
+            </div>
 
             <p className="text-sm text-gray-600 mb-1.5 font-medium">Reason (if on leave):</p>
-            <input value={draftReason} onChange={(e) => setDraftReason(e.target.value)} placeholder="e.g. Casual Leave"
-              className="w-full rounded-lg border border-gray-300 p-2.5 text-sm mb-4 outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500" />
+            <input value={draftReason} disabled={!canEdit} onChange={(e) => setDraftReason(e.target.value)} placeholder="e.g. Casual Leave"
+              className="w-full rounded-lg border border-gray-300 p-2.5 text-sm mb-4 outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500 disabled:bg-gray-50 disabled:text-gray-500" />
 
-            <div className="flex gap-2.5">
-              <button onClick={() => saveDay(true)} disabled={saving} className="flex-1 p-2.5 rounded-lg font-semibold text-sm border-2 border-red-600 bg-red-50 text-red-700 hover:bg-red-100 disabled:opacity-60">
-                Mark On Leave
+            {canEdit && (
+              <button onClick={saveDay} disabled={saving || (draftUserIds.length === originalUserIds.length && draftUserIds.every((id) => originalUserIds.includes(id)))}
+                className="w-full p-2.5 rounded-lg font-semibold text-sm bg-[#006B33] text-white hover:bg-green-700 disabled:opacity-60">
+                {saving ? "Saving..." : "Save Changes"}
               </button>
-              <button onClick={() => saveDay(false)} disabled={saving} className="flex-1 p-2.5 rounded-lg font-semibold text-sm border-2 border-green-600 bg-green-50 text-green-700 hover:bg-green-100 disabled:opacity-60">
-                Mark Available
-              </button>
-            </div>
+            )}
           </div>
         </div>
       )}

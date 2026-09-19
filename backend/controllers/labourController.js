@@ -1,4 +1,5 @@
 import * as LabourModel from '../models/labour.js';
+import { logResourceAudit } from '../models/auditLog.js';
 
 export const listLabours = async (req, res, next) => {
     try {
@@ -12,6 +13,7 @@ export const createLabour = async (req, res, next) => {
         const { name } = req.body;
         if (!name) return res.status(400).json({ success: false, message: 'Name is required' });
         const newLabour = await LabourModel.createLabour(name);
+        logResourceAudit(req, "create_labour", { name });
         res.json({ success: true, labour: newLabour });
     } catch (err) { next(err); }
 };
@@ -21,6 +23,7 @@ export const updateLabour = async (req, res, next) => {
         const { id } = req.params;
         const { name, is_active } = req.body;
         await LabourModel.updateLabour(id, name, is_active);
+        logResourceAudit(req, "update_labour", { labourId: id, name, is_active });
         res.json({ success: true });
     } catch (err) { next(err); }
 };
@@ -29,6 +32,7 @@ export const deleteLabour = async (req, res, next) => {
     try {
         const { id } = req.params;
         await LabourModel.deleteLabour(id);
+        logResourceAudit(req, "delete_labour", { labourId: id });
         res.json({ success: true });
     } catch (err) { next(err); }
 };
@@ -37,6 +41,7 @@ export const setLabourAvailability = async (req, res, next) => {
     try {
         const { labourId, date, isOnLeave, reason } = req.body;
         const result = await LabourModel.setLabourAvailability(labourId, date, isOnLeave, reason);
+        logResourceAudit(req, "set_labour_availability", { labourId, date, isOnLeave, reason });
         res.json({ success: true, availability: result });
     } catch (err) { next(err); }
 };
