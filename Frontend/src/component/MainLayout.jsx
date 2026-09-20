@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { NavLink, Outlet } from 'react-router-dom';
+import { NavLink, Outlet, useNavigate } from 'react-router-dom';
 import {
   Menu, Bell, Cloud, CloudCheck, CloudOff, User,
   LayoutDashboard, Wrench, ClipboardList,
@@ -14,6 +14,7 @@ import { getErrorMessage } from '../api/client';
 import { PASSWORD_PATTERN, PASSWORD_REQUIREMENTS_MESSAGE } from '../utils/password';
 
 export default function MainLayout() {
+  const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [showUserMenu, setShowUserMenu] = useState(false);
@@ -192,10 +193,13 @@ export default function MainLayout() {
 
             {showUserMenu && (
               <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg py-2 z-40">
-                <div className="px-4 py-3 border-b border-gray-100 mb-1">
+                <button
+                  onClick={() => { setShowUserMenu(false); navigate('/profile'); }}
+                  className="w-full text-left px-4 py-3 border-b border-gray-100 mb-1 hover:bg-gray-50"
+                >
                    <p className="text-sm font-bold text-gray-900 truncate">{currentUser.name}</p>
                    <p className="text-xs text-gray-500 font-medium truncate">{currentUser.roleTitle}</p>
-                </div>
+                </button>
                 <button
                   onClick={() => { setShowUserMenu(false); setShowChangePasswordModal(true); }}
                   className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"

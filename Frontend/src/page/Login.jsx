@@ -130,7 +130,7 @@ export default function FMRCLogin() {
           </form>
 
           <div className="mt-6 pt-5 border-t border-gray-200 flex items-center justify-between text-xs">
-            <Link to="/forgot-password" className="text-[#1a6b3c] font-medium hover:underline">
+            <Link to="/forgot-password" state={{ username }} className="text-[#1a6b3c] font-medium hover:underline">
               Forgot Password?
             </Link>
             <a href="#" className="flex items-center gap-1 text-gray-500 hover:text-gray-700">

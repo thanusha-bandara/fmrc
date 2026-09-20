@@ -26,7 +26,7 @@ apiClient.interceptors.response.use(
             
             // Do not intercept authentication requests (login, password reset, etc) -- these
             // must fail immediately rather than being queued for later background replay.
-            if (config && config.url && (config.url.includes('/login') || config.url.includes('/reset-password'))) {
+            if (config && config.url && (config.url.includes('/login') || config.url.includes('/password-reset-request'))) {
                 return Promise.reject(new Error("Internet connection is required to login."));
             }
 

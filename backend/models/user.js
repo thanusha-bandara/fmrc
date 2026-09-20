@@ -61,6 +61,37 @@ export const updateUserPassword = async (userId, password_hash) => {
     await db.query(`UPDATE Users SET password_hash = ? WHERE user_id = ?`, [password_hash, userId]);
 };
 
+export const hasPendingResetRequest = async (userId) => {
+    const [rows] = await db.query(
+        `SELECT request_id FROM Password_Reset_Requests WHERE user_id = ? AND status = 'Pending' LIMIT 1`,
+        [userId]
+    );
+    return rows.length > 0;
+};
+
+export const createResetRequest = async (userId) => {
+    await db.query(`INSERT INTO Password_Reset_Requests (user_id) VALUES (?)`, [userId]);
+};
+
+export const listPendingResetRequests = async () => {
+    const [rows] = await db.query(
+        `SELECT r.request_id, r.user_id, r.requested_at, u.full_name, u.username, u.role
+         FROM Password_Reset_Requests r
+         JOIN Users u ON u.user_id = r.user_id
+         WHERE r.status = 'Pending'
+         ORDER BY r.requested_at ASC`
+    );
+    return rows;
+};
+
+export const completeResetRequests = async (userId) => {
+    await db.query(
+        `UPDATE Password_Reset_Requests SET status = 'Completed', completed_at = NOW()
+         WHERE user_id = ? AND status = 'Pending'`,
+        [userId]
+    );
+};
+
 export const deleteUser = async (userId) => {
     const [result] = await db.query(`DELETE FROM Users WHERE user_id = ?`, [userId]);
     return result.affectedRows > 0;

@@ -10,7 +10,9 @@ import {
     changePassword,
     deactivateUser,
     removeUser,
-    resetPassword
+    requestPasswordReset,
+    listPasswordResetRequests,
+    setUserPassword
 } from "../controllers/userController.js";
 import { authenticate, authorize } from "../middlware/auth.js";
 
@@ -18,7 +20,7 @@ const router = express.Router();
 
 // Public
 router.post("/login", login);
-router.post("/reset-password", resetPassword);
+router.post("/password-reset-request", requestPasswordReset);
 
 // Authenticated (any role)
 router.get("/me", authenticate, getMe);
@@ -31,6 +33,8 @@ router.get("/", authenticate, listUsers);
 
 // Admin only
 router.post("/register", authenticate, authorize("Admin"), registerUser);
+router.get("/password-reset-requests", authenticate, authorize("Admin"), listPasswordResetRequests);
+router.put("/:id/password", authenticate, authorize("Admin"), setUserPassword);
 router.get("/:id", authenticate, authorize("Admin"), getUser);
 router.put("/:id", authenticate, authorize("Admin"), editUser);
 router.put("/:id/deactivate", authenticate, authorize("Admin"), deactivateUser);

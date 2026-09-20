@@ -1,17 +1,14 @@
 import React, { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import { User, Lock, Eye, EyeOff, ArrowRight, ShieldCheck } from "lucide-react";
+import { Link, useNavigate, useLocation } from "react-router-dom";
+import { User, ArrowRight, ShieldCheck } from "lucide-react";
 import loginBg from "../assets/login.jpg";
 import fmrcLogo from "../assets/FMRClogo.png";
-import { resetPassword } from "../api/auth";
+import { requestPasswordReset } from "../api/auth";
 import { getErrorMessage } from "../api/client";
-import { PASSWORD_PATTERN, PASSWORD_REQUIREMENTS_MESSAGE } from "../utils/password";
 
 export default function ForgotPassword() {
-  const [username, setUsername] = useState("");
-  const [newPassword, setNewPassword] = useState("");
-  const [confirmPassword, setConfirmPassword] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
+  const location = useLocation();
+  const [username, setUsername] = useState(location.state?.username || "");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
@@ -22,28 +19,18 @@ export default function ForgotPassword() {
     e.preventDefault();
     setError("");
 
-    if (!username || !newPassword || !confirmPassword) {
-      setError("Please fill in all fields.");
-      return;
-    }
-    if (!PASSWORD_PATTERN.test(newPassword)) {
-      setError(PASSWORD_REQUIREMENTS_MESSAGE);
-      return;
-    }
-    if (newPassword !== confirmPassword) {
-      setError("Passwords do not match.");
+    if (!username) {
+      setError("Please enter your username.");
       return;
     }
 
     setLoading(true);
     try {
-      await resetPassword(username, newPassword);
+      await requestPasswordReset(username);
       setSuccess(true);
     } catch (err) {
       if (!err.response) {
         setError("Unable to connect to the server. Check your internet connection.");
-      } else if (err.response.status === 404) {
-        setError("No account found with that username.");
       } else {
         setError(getErrorMessage(err));
       }
@@ -68,20 +55,21 @@ export default function ForgotPassword() {
         <div className="flex flex-col justify-center px-8 sm:px-14 py-16 bg-[#fafbfa]">
           <h1 className="text-2xl font-bold text-[#1a6b3c]">Forgot Password</h1>
           <p className="mt-1 flex items-center gap-1.5 text-sm text-gray-500">
-            <ShieldCheck size={13} /> Enter your username and set a new password
+            <ShieldCheck size={13} /> Send a request to the administrator to reset your password
           </p>
 
           {success ? (
             <div className="mt-8 space-y-5">
               <div className="rounded-md border border-green-200 bg-green-50 px-3.5 py-3 text-sm text-green-800">
-                Your password has been reset successfully.
+                Your request has been sent to the administrator. Once they set a new password
+                for you, sign in with it.
               </div>
               <button
                 type="button"
                 onClick={() => navigate("/login")}
                 className="w-full flex items-center justify-center gap-2 rounded-md bg-[#1a6b3c] hover:bg-[#155530] text-white font-semibold py-2.5 text-sm transition"
               >
-                Sign In
+                Back to Sign In
                 <ArrowRight size={16} />
               </button>
             </div>
@@ -110,54 +98,12 @@ export default function ForgotPassword() {
                 </div>
               </div>
 
-              <div>
-                <label htmlFor="newPassword" className="block text-sm text-gray-600 mb-1.5">
-                  New Password
-                </label>
-                <div className="relative">
-                  <input
-                    id="newPassword"
-                    type={showPassword ? "text" : "password"}
-                    value={newPassword}
-                    onChange={(e) => setNewPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full rounded-md border border-gray-300 bg-white px-3.5 py-2.5 pr-16 text-sm text-gray-700 placeholder-gray-400 outline-none focus:border-[#1a6b3c] focus:ring-2 focus:ring-[#1a6b3c]/20 transition"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((s) => !s)}
-                    className="absolute right-3.5 top-1/2 -translate-y-1/2 flex items-center gap-1 text-xs font-medium text-[#1a6b3c] hover:text-[#134f2c]"
-                  >
-                    {showPassword ? <EyeOff size={14} /> : <Eye size={14} />}
-                    {showPassword ? "Hide" : "Show"}
-                  </button>
-                </div>
-                <p className="mt-1.5 text-[11px] text-gray-400">{PASSWORD_REQUIREMENTS_MESSAGE}</p>
-              </div>
-
-              <div>
-                <label htmlFor="confirmPassword" className="block text-sm text-gray-600 mb-1.5">
-                  Confirm New Password
-                </label>
-                <div className="relative">
-                  <input
-                    id="confirmPassword"
-                    type={showPassword ? "text" : "password"}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    placeholder="••••••••"
-                    className="w-full rounded-md border border-gray-300 bg-white px-3.5 py-2.5 pr-10 text-sm text-gray-700 placeholder-gray-400 outline-none focus:border-[#1a6b3c] focus:ring-2 focus:ring-[#1a6b3c]/20 transition"
-                  />
-                  <Lock size={16} className="absolute right-3.5 top-1/2 -translate-y-1/2 text-gray-400" />
-                </div>
-              </div>
-
               <button
                 type="submit"
                 disabled={loading}
                 className="w-full flex items-center justify-center gap-2 rounded-md bg-[#1a6b3c] hover:bg-[#155530] text-white font-semibold py-2.5 text-sm transition disabled:opacity-70"
               >
-                {loading ? "Saving..." : "Reset Password"}
+                {loading ? "Sending..." : "Send Request to Admin"}
                 {!loading && <ArrowRight size={16} />}
               </button>
             </form>

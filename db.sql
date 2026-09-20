@@ -331,6 +331,22 @@ INSERT INTO `users` VALUES (1,'System Administrator','admin','admin@fmrc.gov.lk'
 UNLOCK TABLES;
 
 --
+-- Table structure for table `password_reset_requests`
+--
+
+DROP TABLE IF EXISTS `password_reset_requests`;
+CREATE TABLE `password_reset_requests` (
+  `request_id` int NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `status` enum('Pending','Completed') NOT NULL DEFAULT 'Pending',
+  `requested_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `completed_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`request_id`),
+  KEY `user_id` (`user_id`),
+  CONSTRAINT `password_reset_requests_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+--
 -- Table structure for table `weather_logs`
 --
 
