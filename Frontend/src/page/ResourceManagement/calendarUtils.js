@@ -1,5 +1,14 @@
 // Small shared helpers for the month-grid calendars in Resource Management.
 
+// Resource Management is view-only for everyone except Technical Assistants.
+export function canEditResources() {
+  try {
+    return localStorage.getItem("userRole") === "TA";
+  } catch {
+    return false;
+  }
+}
+
 export function buildMonthCells(baseDate) {
   const year = baseDate.getFullYear();
   const month = baseDate.getMonth();

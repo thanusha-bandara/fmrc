@@ -7,20 +7,20 @@ import {
     setLabourAvailability,
     listLabourAvailability
 } from '../controllers/labourController.js';
-import { authenticate } from '../middlware/auth.js';
+import { authenticate, authorize } from '../middlware/auth.js';
 
 const router = express.Router();
 
 router.use(authenticate);
 
-// Labour Management
+// Only Technical Assistants can change labour records; everyone else views them.
 router.get('/', listLabours);
-router.post('/', createLabour);
-router.put('/:id', updateLabour);
-router.delete('/:id', deleteLabour);
+router.post('/', authorize('Technical_Assistant'), createLabour);
+router.put('/:id', authorize('Technical_Assistant'), updateLabour);
+router.delete('/:id', authorize('Technical_Assistant'), deleteLabour);
 
 // Labour Availability
 router.get('/availability', listLabourAvailability);
-router.post('/availability', setLabourAvailability);
+router.post('/availability', authorize('Technical_Assistant'), setLabourAvailability);
 
 export default router;

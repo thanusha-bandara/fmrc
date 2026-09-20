@@ -2,9 +2,10 @@ import { useState, useEffect } from "react";
 import { X } from "lucide-react";
 import { listFarmDailyStatus, setFarmDailyStatus } from "../../api/resources";
 import { getErrorMessage } from "../../api/client";
-import { buildMonthCells, toISODate, formatFullDate } from "./calendarUtils";
+import { buildMonthCells, toISODate, formatFullDate, canEditResources } from "./calendarUtils";
 
 export default function FieldCalendar({ emphasis }) {
+  const canEdit = canEditResources();
   const [monthOffset, setMonthOffset] = useState(0);
   const [records, setRecords] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -97,6 +98,7 @@ export default function FieldCalendar({ emphasis }) {
           </div>
 
           <div className="flex items-center gap-4 mb-4 text-xs font-medium text-gray-600">
+            {emphasis !== 'water' && <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-green-50 border border-green-200"></span> Available</div>}
             {emphasis !== 'water' && <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-red-100 border border-red-200"></span> Not Available</div>}
             {emphasis !== 'availability' && <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm bg-blue-100 border border-blue-200"></span> Water Available</div>}
             <div className="flex items-center gap-1.5"><span className="w-3 h-3 rounded-sm border-2 border-green-500 bg-white"></span> Today</div>
@@ -121,9 +123,11 @@ export default function FieldCalendar({ emphasis }) {
               if (!cell.currentMonth) {
                 cellClasses += "bg-white text-gray-300 border-transparent";
               } else if (!isAvail && emphasis !== 'water') {
-                cellClasses += "bg-red-50 border-red-200 cursor-pointer hover:shadow-sm"; 
+                cellClasses += "bg-red-50 border-red-200 cursor-pointer hover:shadow-sm";
               } else if (isWater && emphasis !== 'availability') {
                 cellClasses += "bg-blue-50 border-blue-200 cursor-pointer hover:shadow-sm";
+              } else if (isAvail && emphasis !== 'water') {
+                cellClasses += "bg-green-50 border-green-200 cursor-pointer hover:shadow-sm";
               } else {
                 cellClasses += "bg-white text-gray-800 border-gray-100 hover:border-gray-300 hover:shadow-sm cursor-pointer";
               }
@@ -139,6 +143,11 @@ export default function FieldCalendar({ emphasis }) {
                   {cell.currentMonth && !isAvail && emphasis !== 'water' && (
                     <span className="px-1.5 py-0.5 rounded text-xs font-medium truncate w-full mb-0.5 bg-red-100 text-red-800">
                       Not Available
+                    </span>
+                  )}
+                  {cell.currentMonth && isAvail && emphasis !== 'water' && (
+                    <span className="px-1.5 py-0.5 rounded text-xs font-medium truncate w-full mb-0.5 bg-green-100 text-green-800">
+                      Available
                     </span>
                   )}
                   {cell.currentMonth && isWater && emphasis !== 'availability' && (
@@ -161,15 +170,18 @@ export default function FieldCalendar({ emphasis }) {
               <button onClick={closeModal} className="bg-transparent border-none cursor-pointer hover:bg-gray-100 p-1.5 rounded-full transition-colors"><X size={20} className="text-gray-500" /></button>
             </div>
 
+            {!canEdit && <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-4">View only — only Technical Assistants can change this.</p>}
+
             <div className="space-y-4 mb-6">
               {(emphasis === 'availability' || !emphasis) && (
                 <div className="flex justify-between items-center p-3 rounded-xl border border-gray-200 bg-gray-50">
                   <span className="font-bold text-sm text-gray-700">Field Available?</span>
-                  <input 
-                    type="checkbox" 
-                    checked={draftFieldAvailable} 
+                  <input
+                    type="checkbox"
+                    checked={draftFieldAvailable}
+                    disabled={!canEdit}
                     onChange={(e) => setDraftFieldAvailable(e.target.checked)}
-                    className="w-5 h-5 accent-green-600 cursor-pointer"
+                    className="w-5 h-5 accent-green-600 cursor-pointer disabled:cursor-not-allowed"
                   />
                 </div>
               )}
@@ -177,19 +189,22 @@ export default function FieldCalendar({ emphasis }) {
               {(emphasis === 'water' || !emphasis) && (
                 <div className="flex justify-between items-center p-3 rounded-xl border border-gray-200 bg-gray-50">
                   <span className="font-bold text-sm text-gray-700">Water Available?</span>
-                  <input 
-                    type="checkbox" 
-                    checked={draftWaterAvailable} 
+                  <input
+                    type="checkbox"
+                    checked={draftWaterAvailable}
+                    disabled={!canEdit}
                     onChange={(e) => setDraftWaterAvailable(e.target.checked)}
-                    className="w-5 h-5 accent-blue-600 cursor-pointer"
+                    className="w-5 h-5 accent-blue-600 cursor-pointer disabled:cursor-not-allowed"
                   />
                 </div>
               )}
             </div>
 
-            <button onClick={saveDay} disabled={saving} className="w-full bg-[#006B33] text-white py-3 rounded-xl font-bold text-sm hover:bg-green-700 disabled:opacity-60 transition-colors shadow-md">
-              {saving ? "Saving..." : "Save Daily Status"}
-            </button>
+            {canEdit && (
+              <button onClick={saveDay} disabled={saving} className="w-full bg-[#006B33] text-white py-3 rounded-xl font-bold text-sm hover:bg-green-700 disabled:opacity-60 transition-colors shadow-md">
+                {saving ? "Saving..." : "Save Daily Status"}
+              </button>
+            )}
           </div>
         </div>
       )}

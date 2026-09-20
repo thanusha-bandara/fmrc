@@ -1,6 +1,7 @@
 import { upsertWeatherLog } from '../models/weatherLog.js';
 import { runAutomaticScheduling } from '../services/autoScheduleService.js';
 import { getRainyDates } from '../services/weatherService.js';
+import { logResourceAudit } from '../models/auditLog.js';
 import db from '../config/db.js';
 
 export const listWeatherLogs = async (req, res) => {
@@ -19,6 +20,7 @@ export const listWeatherLogs = async (req, res) => {
 export const refreshWeather = async (req, res) => {
     try {
         const rainyDates = await getRainyDates();
+        logResourceAudit(req, "refresh_weather", { rainyDates });
         res.status(200).json({ success: true, rainyDates });
     } catch (error) {
         res.status(500).json({ success: false, message: "Error refreshing weather data.", error: error.message });
@@ -38,6 +40,8 @@ export const setManualWeather = async (req, res) => {
 
         // Trigger automatic rescheduling to optimize based on the new weather
         runAutomaticScheduling();
+
+        logResourceAudit(req, "set_manual_weather", { date, isRainy });
 
         res.status(200).json({
             success: true,
