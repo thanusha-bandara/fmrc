@@ -255,7 +255,7 @@ CREATE TABLE `test_records` (
   `test_name` varchar(100) NOT NULL,
   `is_field_test` tinyint(1) DEFAULT '1',
   `requires_water` tinyint(1) DEFAULT '0',
-  `required_season` enum('Yala','Maha','Any') DEFAULT 'Any',
+  `required_season` enum('Ploughing','Harvesting','Any') DEFAULT 'Any',
   `technical_assistant_id` int DEFAULT NULL,
   `mechanical_engineer_id` int DEFAULT NULL,
   `chief_engineer_id` int DEFAULT NULL,
