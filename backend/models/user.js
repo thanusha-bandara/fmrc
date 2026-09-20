@@ -69,8 +69,8 @@ export const hasPendingResetRequest = async (userId) => {
     return rows.length > 0;
 };
 
-export const createResetRequest = async (userId) => {
-    await db.query(`INSERT INTO Password_Reset_Requests (user_id) VALUES (?)`, [userId]);
+export const createResetRequest = async (userId, username) => {
+    await db.query(`INSERT INTO Password_Reset_Requests (user_id, username) VALUES (?, ?)`, [userId, username]);
 };
 
 export const listPendingResetRequests = async () => {

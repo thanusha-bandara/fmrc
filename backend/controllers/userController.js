@@ -90,7 +90,7 @@ export const requestPasswordReset = async (req, res) => {
         }
 
         if (!(await hasPendingResetRequest(user.user_id))) {
-            await createResetRequest(user.user_id);
+            await createResetRequest(user.user_id, user.username);
         }
 
         res.status(200).json({ success: true, message: "Your request has been sent to the administrator." });

@@ -338,6 +338,7 @@ DROP TABLE IF EXISTS `password_reset_requests`;
 CREATE TABLE `password_reset_requests` (
   `request_id` int NOT NULL AUTO_INCREMENT,
   `user_id` int NOT NULL,
+  `username` varchar(50) DEFAULT NULL,
   `status` enum('Pending','Completed') NOT NULL DEFAULT 'Pending',
   `requested_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
   `completed_at` timestamp NULL DEFAULT NULL,
