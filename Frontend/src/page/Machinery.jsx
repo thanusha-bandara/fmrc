@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { Wrench, Plus, Search, X, ChevronDown, ChevronRight, CheckCircle2, Clock, AlertCircle } from 'lucide-react';
-import { listMachinery, registerMachine, updateMachine } from '../api/machinery';
+import { Wrench, Plus, Search, X, ChevronDown, ChevronRight, CheckCircle2, Clock, AlertCircle, Edit, Trash2 } from 'lucide-react';
+import Swal from 'sweetalert2';
+import { listMachinery, registerMachine, updateMachine, deleteMachine } from '../api/machinery';
 import { createTest, listTests } from '../api/tests';
 import { generateStandardTestSet, getCatalogs } from '../api/testTemplates';
 import { getErrorMessage } from '../api/client';
+import { listUsers } from '../api/users';
+import { listLabours } from '../api/labours';
 import TestDetailModal from './tests/TestDetailModal';
 
 export default function Machinery() {
@@ -15,9 +18,15 @@ export default function Machinery() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  
+  // Create / Edit Modals
   const [showModal, setShowModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ machine_name: '', model: '', supplier: '', registration_date: '' });
+  
+  const [form, setForm] = useState({ machine_name: '', model: '', supplier: '', registration_date: '', responsible_ta_id: '', required_labours: [] });
+  const [editForm, setEditForm] = useState({ machine_id: null, machine_name: '', model: '', supplier: '', registration_date: '', responsible_ta_id: '', required_labours: [] });
+  
   const [showTestModal, setShowTestModal] = useState(false);
   const [activeMachine, setActiveMachine] = useState(null);
   const [testForm, setTestForm] = useState({ test_name: '', is_field_test: true, requires_water: false, required_season: 'Any' });
@@ -26,18 +35,11 @@ export default function Machinery() {
   const [expandedMachine, setExpandedMachine] = useState(null);
   const [machineTests, setMachineTests] = useState({});
   const [loadingTests, setLoadingTests] = useState(false);
-
-  // Click-to-fill: opens the same test detail/fill modal used on the Assigned/Pending/
-  // Completed lists, straight off a machine's expanded test row.
   const [activeTest, setActiveTest] = useState(null);
 
-  // Standard test set catalogs (one per machine type, e.g. 4-Wheel Tractor / Combine
-  // Harvester) -- fetched once so the admin can pick which one to generate per machine.
   const [catalogs, setCatalogs] = useState({});
   const [selectedCatalog, setSelectedCatalog] = useState('');
 
-  // Report Details modal (title page / importer / safety / background fields the official
-  // final report needs, captured once per machine).
   const [showReportDetailsModal, setShowReportDetailsModal] = useState(false);
   const [reportDetailsMachine, setReportDetailsMachine] = useState(null);
   const [reportDetailsForm, setReportDetailsForm] = useState({
@@ -45,6 +47,10 @@ export default function Machinery() {
     importer_name: '', importer_address: '', importer_tel: '', importer_fax: '', importer_web: '',
     rops_available: false, safety_note: '', background_note: ''
   });
+
+  // TAs and Labours
+  const [tas, setTas] = useState([]);
+  const [labours, setLabours] = useState([]);
 
   const loadMachines = () => {
     setLoading(true);
@@ -57,12 +63,13 @@ export default function Machinery() {
   useEffect(() => { loadMachines(); }, []);
 
   useEffect(() => {
-    getCatalogs()
-      .then((data) => {
-        setCatalogs(data);
-        setSelectedCatalog((prev) => prev || Object.keys(data)[0] || '');
-      })
-      .catch(() => {});
+    getCatalogs().then((data) => {
+      setCatalogs(data);
+      setSelectedCatalog((prev) => prev || Object.keys(data)[0] || '');
+    }).catch(() => {});
+    
+    listUsers('Technical_Assistant').then(data => setTas(data || [])).catch(() => {});
+    listLabours().then(data => setLabours(data || [])).catch(() => {});
   }, []);
 
   const refreshMachineTests = async (machineId) => {
@@ -87,9 +94,6 @@ export default function Machinery() {
     }
   };
 
-  // registration_date arrives as a plain 'YYYY-MM-DD' string (see backend/config/db.js's
-  // dateStrings option) -- format it directly instead of round-tripping through a JS Date,
-  // which would reintroduce timezone-shift bugs.
   const formatDate = (dateStr) => {
     if (!dateStr) return '-';
     const [year, month, day] = dateStr.split('-');
@@ -98,8 +102,6 @@ export default function Machinery() {
   };
 
   const statusFor = (m) => {
-    // Certified either the legacy way (every individual test Approved) or, for a 4-Wheel
-    // Tractor machine, via the Chief Engineer approving its compiled final report.
     if (m.has_approved_report > 0) return 'Certified';
     if (m.approved_tests > 0 && m.approved_tests === m.total_tests) return 'Certified';
     if (m.total_tests > 0) return 'Testing';
@@ -111,20 +113,60 @@ export default function Machinery() {
     (m.model || '').toLowerCase().includes(search.toLowerCase())
   );
 
-  const handleCreate = async (e) => {
+    const handleCreate = async (e) => {
     e.preventDefault();
     if (!form.machine_name || !form.registration_date) return;
     setSaving(true);
     setError('');
     try {
-      await registerMachine(form);
+      await registerMachine({
+        ...form,
+        responsible_ta_id: form.responsible_ta_id ? Number(form.responsible_ta_id) : null,
+      });
       setShowModal(false);
-      setForm({ machine_name: '', model: '', supplier: '', registration_date: '' });
+      setForm({ machine_name: '', model: '', supplier: '', registration_date: '', responsible_ta_id: '', required_labours: [] });
       loadMachines();
+      Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Machine registered successfully', showConfirmButton: false, timer: 3000 });
     } catch (err) {
       setError(getErrorMessage(err, 'Could not register machine.'));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleEditSubmit = async (e) => {
+    e.preventDefault();
+    if (!editForm.machine_name || !editForm.registration_date) return;
+    setSaving(true);
+    setError('');
+    try {
+      await updateMachine(editForm.machine_id, {
+        machine_name: editForm.machine_name,
+        model: editForm.model,
+        supplier: editForm.supplier,
+        registration_date: editForm.registration_date,
+        responsible_ta_id: editForm.responsible_ta_id ? Number(editForm.responsible_ta_id) : null,
+        required_labours: editForm.required_labours
+      });
+      setShowEditModal(false);
+      loadMachines();
+      Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Machine updated', showConfirmButton: false, timer: 3000 });
+      } catch (err) {
+        setError(getErrorMessage(err, 'Could not update machine.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDeleteMachine = async (machine) => {
+    const result = await Swal.fire({ title: 'Are you sure?', text: `Delete ${machine.machine_name}? All associated tests will be deleted.`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#006B33', cancelButtonColor: '#d33', confirmButtonText: 'Yes, delete it!' });
+    if (!result.isConfirmed) return;
+    try {
+      await deleteMachine(machine.machine_id);
+      loadMachines();
+      Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Machine deleted', showConfirmButton: false, timer: 3000 });
+      } catch (err) {
+        setError(getErrorMessage(err, 'Could not delete machine.'));
     }
   };
 
@@ -141,19 +183,19 @@ export default function Machinery() {
       setShowTestModal(false);
       setTestForm({ test_name: '', is_field_test: true, requires_water: false, required_season: 'Any' });
       
-      // Clear cache for this machine and reload machines
       setMachineTests((prev) => {
         const newCache = { ...prev };
         delete newCache[activeMachine.machine_id];
         return newCache;
       });
       if (expandedMachine === activeMachine.machine_id) {
-        setExpandedMachine(null); // Collapse so they can reopen to fetch fresh
+        setExpandedMachine(null);
       }
       
       loadMachines();
-    } catch (err) {
-      setError(getErrorMessage(err, 'Could not schedule test.'));
+      Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Test scheduled successfully', showConfirmButton: false, timer: 3000 });
+      } catch (err) {
+        setError(getErrorMessage(err, 'Could not schedule test.'));
     } finally {
       setSaving(false);
     }
@@ -162,7 +204,8 @@ export default function Machinery() {
   const handleGenerateStandardSet = async (machine) => {
     if (!selectedCatalog) return;
     const catalogLabel = catalogs[selectedCatalog] || selectedCatalog;
-    if (!window.confirm(`Create the standard test set (${catalogLabel}) for ${machine.machine_name}? This cannot be undone.`)) return;
+    const result = await Swal.fire({ title: 'Are you sure?', text: `Create standard test set for ${machine.machine_name}?`, icon: 'question', showCancelButton: true, confirmButtonColor: '#006B33', confirmButtonText: 'Yes, create it' });
+    if (!result.isConfirmed) return;
     setSaving(true);
     setError('');
     try {
@@ -176,8 +219,9 @@ export default function Machinery() {
         setExpandedMachine(null);
       }
       loadMachines();
-    } catch (err) {
-      setError(getErrorMessage(err, 'Could not generate the standard test set.'));
+      Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Standard test set generated', showConfirmButton: false, timer: 3000 });
+      } catch (err) {
+        setError(getErrorMessage(err, 'Could not generate the standard test set.'));
     } finally {
       setSaving(false);
     }
@@ -209,10 +253,44 @@ export default function Machinery() {
       await updateMachine(reportDetailsMachine.machine_id, reportDetailsForm);
       setShowReportDetailsModal(false);
       loadMachines();
-    } catch (err) {
-      setError(getErrorMessage(err, 'Could not save report details.'));
+      Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Report details saved', showConfirmButton: false, timer: 3000 });
+      } catch (err) {
+        setError(getErrorMessage(err, 'Could not save report details.'));
     } finally {
       setSaving(false);
+    }
+  };
+
+  const openEditModal = (machine) => {
+    let currentLabours = [];
+    if (machine.required_labours) {
+      try {
+        currentLabours = typeof machine.required_labours === 'string' ? JSON.parse(machine.required_labours) : machine.required_labours;
+      } catch (e) {}
+    }
+
+    setEditForm({
+      machine_id: machine.machine_id,
+      machine_name: machine.machine_name,
+      model: machine.model || '',
+      supplier: machine.supplier || '',
+      registration_date: machine.registration_date ? machine.registration_date.split('T')[0] : '',
+      responsible_ta_id: machine.responsible_ta_id || '',
+      required_labours: currentLabours
+    });
+    setShowEditModal(true);
+  };
+
+  const toggleLabourSelection = (labourId, isEdit = false) => {
+    const currentList = isEdit ? editForm.required_labours : form.required_labours;
+    const newList = currentList.includes(labourId) 
+      ? currentList.filter(id => id !== labourId)
+      : [...currentList, labourId];
+    
+    if (isEdit) {
+      setEditForm({ ...editForm, required_labours: newList });
+    } else {
+      setForm({ ...form, required_labours: newList });
     }
   };
 
@@ -310,13 +388,27 @@ export default function Machinery() {
                         onClick={(e) => { e.stopPropagation(); handleGenerateStandardSet(machine); }}
                         className="text-xs font-bold text-[#006B33] hover:underline bg-[#006B33]/10 px-3 py-1.5 rounded-full"
                       >
-                        Generate Standard Set
+                        Generate Set
                       </button>
                       <button
                         onClick={(e) => { e.stopPropagation(); openReportDetails(machine); }}
                         className="text-xs font-bold text-[#006B33] hover:underline bg-[#006B33]/10 px-3 py-1.5 rounded-full"
                       >
                         Report Details
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); openEditModal(machine); }}
+                        className="text-xs font-bold text-blue-600 hover:underline bg-blue-50 px-2 py-1.5 rounded-full ml-2"
+                        title="Edit Machine"
+                      >
+                        <Edit size={14} />
+                      </button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); handleDeleteMachine(machine); }}
+                        className="text-xs font-bold text-red-600 hover:underline bg-red-50 px-2 py-1.5 rounded-full ml-1"
+                        title="Delete Machine"
+                      >
+                        <Trash2 size={14} />
                       </button>
                     </td>
                   )}
@@ -325,7 +417,7 @@ export default function Machinery() {
                 {/* Expanded Tests Sub-table */}
                 {expandedMachine === machine.machine_id && (
                   <tr>
-                    <td colSpan={isAdmin ? 7 : 6} className="p-0 border-b border-gray-200">
+                    <td colSpan={isAdmin ? 8 : 7} className="p-0 border-b border-gray-200">
                       <div className="bg-gray-50 p-6 shadow-inner">
                         <div className="flex items-center gap-2 mb-3">
                           <h4 className="text-sm font-bold text-gray-700">Tests for {machine.machine_name}</h4>
@@ -396,7 +488,7 @@ export default function Machinery() {
       {/* Registration Modal */}
       {showModal && (
         <div onClick={() => setShowModal(false)} className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl relative">
+          <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-xl max-w-lg w-full p-6 shadow-xl relative max-h-[90vh] overflow-y-auto">
             <button onClick={() => setShowModal(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-700">
               <X size={20} />
             </button>
@@ -407,23 +499,122 @@ export default function Machinery() {
                 <input required value={form.machine_name} onChange={(e) => setForm({ ...form, machine_name: e.target.value })}
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20" placeholder="e.g. Tractor 01" />
               </div>
-              <div>
-                <label className="block text-sm text-gray-600 mb-1">Model</label>
-                <input value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20" placeholder="e.g. MF-385" />
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">Model</label>
+                  <input value={form.model} onChange={(e) => setForm({ ...form, model: e.target.value })}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20" placeholder="e.g. MF-385" />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">Registration Date *</label>
+                  <input required type="date" value={form.registration_date} onChange={(e) => setForm({ ...form, registration_date: e.target.value })}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20" />
+                </div>
               </div>
               <div>
                 <label className="block text-sm text-gray-600 mb-1">Supplier</label>
                 <input value={form.supplier} onChange={(e) => setForm({ ...form, supplier: e.target.value })}
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20" placeholder="e.g. Massey Ferguson" />
               </div>
+              <div className="border-t border-gray-100 pt-4 mt-4">
+                <label className="block text-sm text-gray-600 mb-1">Responsible Officer (Skilled TA)</label>
+                <select 
+                  value={form.responsible_ta_id} 
+                  onChange={(e) => setForm({ ...form, responsible_ta_id: e.target.value })}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20"
+                >
+                  <option value="">-- Select Technical Assistant --</option>
+                  {tas.map(ta => (
+                    <option key={ta.user_id} value={ta.user_id}>{ta.full_name}</option>
+                  ))}
+                </select>
+              </div>
               <div>
-                <label className="block text-sm text-gray-600 mb-1">Registration Date *</label>
-                <input required type="date" value={form.registration_date} onChange={(e) => setForm({ ...form, registration_date: e.target.value })}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20" />
+                <label className="block text-sm text-gray-600 mb-2">Skilled Labours</label>
+                <div className="space-y-2 border border-gray-200 rounded-md p-3 max-h-40 overflow-y-auto">
+                  {labours.map(labour => (
+                    <label key={labour.labour_id} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={form.required_labours.includes(labour.labour_id)}
+                        onChange={() => toggleLabourSelection(labour.labour_id, false)}
+                        className="rounded text-[#006B33] focus:ring-[#006B33]"
+                      />
+                      {labour.name}
+                    </label>
+                  ))}
+                </div>
               </div>
               <button type="submit" disabled={saving} className="w-full bg-[#006B33] text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-green-700 disabled:opacity-60">
                 {saving ? 'Saving...' : 'Register Machine'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit Machine Modal */}
+      {showEditModal && (
+        <div onClick={() => setShowEditModal(false)} className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-xl max-w-lg w-full p-6 shadow-xl relative max-h-[90vh] overflow-y-auto">
+            <button onClick={() => setShowEditModal(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-700">
+              <X size={20} />
+            </button>
+            <h3 className="text-lg font-bold text-gray-900 mb-4">Edit Machine</h3>
+            <form onSubmit={handleEditSubmit} className="space-y-4">
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Machine Name *</label>
+                <input required value={editForm.machine_name} onChange={(e) => setEditForm({ ...editForm, machine_name: e.target.value })}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20" />
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">Model</label>
+                  <input value={editForm.model} onChange={(e) => setEditForm({ ...editForm, model: e.target.value })}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20" />
+                </div>
+                <div>
+                  <label className="block text-sm text-gray-600 mb-1">Registration Date *</label>
+                  <input required type="date" value={editForm.registration_date} onChange={(e) => setEditForm({ ...editForm, registration_date: e.target.value })}
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-1">Supplier</label>
+                <input value={editForm.supplier} onChange={(e) => setEditForm({ ...editForm, supplier: e.target.value })}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20" />
+              </div>
+              <div className="border-t border-gray-100 pt-4 mt-4">
+                <label className="block text-sm text-gray-600 mb-1">Responsible Officer (Skilled TA)</label>
+                <select 
+                  value={editForm.responsible_ta_id} 
+                  onChange={(e) => setEditForm({ ...editForm, responsible_ta_id: e.target.value })}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20"
+                >
+                  <option value="">-- Select Technical Assistant --</option>
+                  {tas.map(ta => (
+                    <option key={ta.user_id} value={ta.user_id}>{ta.full_name}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm text-gray-600 mb-2">Skilled Labours</label>
+                <div className="space-y-2 border border-gray-200 rounded-md p-3 max-h-40 overflow-y-auto">
+                  {labours.map(labour => (
+                    <label key={labour.labour_id} className="flex items-center gap-2 text-sm text-gray-700 cursor-pointer">
+                      <input 
+                        type="checkbox" 
+                        checked={editForm.required_labours.includes(labour.labour_id)}
+                        onChange={() => toggleLabourSelection(labour.labour_id, true)}
+                        className="rounded text-[#006B33] focus:ring-[#006B33]"
+                      />
+                      {labour.name}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <button type="submit" disabled={saving} className="w-full bg-[#006B33] text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-green-700 disabled:opacity-60">
+                {saving ? 'Updating...' : 'Update Machine'}
               </button>
             </form>
           </div>
@@ -474,8 +665,7 @@ export default function Machinery() {
         </div>
       )}
 
-      {/* Report Details Modal -- title page / importer / safety / background fields the
-          official final report needs (see backend/services/officialTractorReportService.js) */}
+      {/* Report Details Modal */}
       {showReportDetailsModal && (
         <div onClick={() => setShowReportDetailsModal(false)} className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-xl max-w-lg w-full p-6 shadow-xl relative max-h-[85vh] overflow-y-auto">

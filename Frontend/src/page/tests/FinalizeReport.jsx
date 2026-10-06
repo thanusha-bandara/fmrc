@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { FileCheck2, Wrench, ChevronDown, ChevronRight, CheckCircle2 } from 'lucide-react';
+import Swal from 'sweetalert2';
 import { listMachinery, getFinalizeStatus, finalizeReport } from '../../api/machinery';
 import { getErrorMessage } from '../../api/client';
 
@@ -66,13 +67,15 @@ export default function FinalizeReport() {
       setError('Pick one replicate for every implement group before submitting.');
       return;
     }
-    if (!window.confirm(`Generate the final report for ${machine.machine_name}? This sends it to the Chief Engineer for approval.`)) return;
+    const result = await Swal.fire({ title: 'Generate Final Report?', text: `Send report for ${machine.machine_name} to Chief Engineer?`, icon: 'question', showCancelButton: true, confirmButtonColor: '#006B33', confirmButtonText: 'Yes, generate it' });
+    if (!result.isConfirmed) return;
 
     setSubmitting(true);
     setError('');
     try {
       await finalizeReport(machine.machine_id, machineSelections);
       setSuccessMessage(`Final report generated for ${machine.machine_name} and sent for Chief Engineer approval.`);
+      Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Report Generated!', showConfirmButton: false, timer: 3000 });
       const status = await getFinalizeStatus(machine.machine_id);
       setStatusByMachine((prev) => ({ ...prev, [machine.machine_id]: status }));
     } catch (err) {

@@ -6,7 +6,6 @@ import { getFarmSeasons } from '../models/field.js';
 import { getTechnicalAssistants, getTALeaves } from '../models/user.js';
 import { getCustomHolidays } from '../models/calendar.js';
 
-
 export const persistSchedule = async (testIds, bestSchedule) => {
     if (testIds.length > 0) {
         await db.query(`DELETE FROM Schedules WHERE test_id IN (?) AND status IN ('Scheduled', 'Rescheduled')`, [testIds]);
@@ -42,6 +41,8 @@ export const runAutomaticScheduling = async () => {
                 tr.technical_assistant_id, 
                 m.registration_date as registrationDate,
                 m.machine_name,
+                m.responsible_ta_id as machine_responsible_ta,
+                m.required_labours,
                 MAX(s.schedule_id) as schedule_id
             FROM Test_Records tr 
             JOIN Machinery m ON tr.machine_id = m.machine_id 
@@ -56,6 +57,11 @@ export const runAutomaticScheduling = async () => {
         }
 
         const pendingTests = tests.map(t => {
+            let requiredLabours = [];
+            if (t.required_labours) {
+                try { requiredLabours = typeof t.required_labours === 'string' ? JSON.parse(t.required_labours) : t.required_labours; } catch(e) {}
+            }
+            
             return {
                 test_id: t.test_id,
                 test_name: t.test_name,
@@ -64,7 +70,8 @@ export const runAutomaticScheduling = async () => {
                 isFieldTest: Boolean(t.is_field_test),
                 requiredSeason: t.required_season || "Any",
                 requiresWater: Boolean(t.requires_water),
-                requiredTA: t.technical_assistant_id || null
+                requiredTA: t.technical_assistant_id || t.machine_responsible_ta,
+                requiredLabours: requiredLabours
             };
         });
 
@@ -78,6 +85,10 @@ export const runAutomaticScheduling = async () => {
         
         // Fetch all holidays from database (public holidays are synced here too)
         const allHolidays = await getCustomHolidays();
+        
+        // Fetch labour leaves
+        const [labourLeavesArray] = await db.query(`SELECT labour_id, DATE_FORMAT(date, '%Y-%m-%d') as leave_date FROM labour_availability WHERE is_on_leave = TRUE`);
+        const labourLeaves = labourLeavesArray || [];
 
         // Fetch daily farm statuses (field closed/water available overrides)
         const farmDailyStatusArray = await db.query(`SELECT date, is_field_available, is_water_available FROM farm_daily_status`);
@@ -88,7 +99,8 @@ export const runAutomaticScheduling = async () => {
         }, {});
 
         // 3. Run Genetic Algorithm
-        const bestSchedule = runGA(filteredTests, rainyDates, [], tas, allHolidays, taLeaves, farmDailyStatus, allSeasons);
+        const gaResult = runGA(filteredTests, rainyDates, [], tas, allHolidays, taLeaves, farmDailyStatus, allSeasons, labourLeaves);
+        const bestSchedule = gaResult.schedule;
 
         // 4. Save to Database (replaces old 'Scheduled'/'Rescheduled' rows for these tests)
         const testIds = tests.map(t => t.test_id);

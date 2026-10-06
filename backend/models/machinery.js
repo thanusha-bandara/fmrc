@@ -1,9 +1,13 @@
 import db from '../config/db.js';
 
-export const createMachinery = async ({ machine_name, model, supplier, registration_date }) => {
+export const createMachinery = async ({ machine_name, model, supplier, registration_date, responsible_ta_id, required_labours }) => {
     const [result] = await db.query(
-        `INSERT INTO Machinery (machine_name, model, supplier, registration_date) VALUES (?, ?, ?, ?)`,
-        [machine_name, model || null, supplier || null, registration_date]
+        `INSERT INTO Machinery (machine_name, model, supplier, registration_date, responsible_ta_id, required_labours) VALUES (?, ?, ?, ?, ?, ?)`,
+        [
+            machine_name, model || null, supplier || null, registration_date, 
+            responsible_ta_id || null, 
+            required_labours ? JSON.stringify(required_labours) : null
+        ]
     );
     return getMachineryById(result.insertId);
 };
@@ -32,7 +36,7 @@ export const updateMachinery = async (machineId, {
     machine_name, model, supplier, registration_date,
     document_ref_number, manufacturer_country,
     importer_name, importer_address, importer_tel, importer_fax, importer_web,
-    rops_available, safety_note, background_note
+    rops_available, safety_note, background_note, responsible_ta_id, required_labours
 }) => {
     await db.query(
         `UPDATE Machinery SET
@@ -49,13 +53,17 @@ export const updateMachinery = async (machineId, {
             importer_web = COALESCE(?, importer_web),
             rops_available = COALESCE(?, rops_available),
             safety_note = COALESCE(?, safety_note),
-            background_note = COALESCE(?, background_note)
+            background_note = COALESCE(?, background_note),
+            responsible_ta_id = ?,
+            required_labours = ?
          WHERE machine_id = ?`,
         [
             machine_name ?? null, model ?? null, supplier ?? null, registration_date ?? null,
             document_ref_number ?? null, manufacturer_country ?? null,
             importer_name ?? null, importer_address ?? null, importer_tel ?? null, importer_fax ?? null, importer_web ?? null,
             rops_available ?? null, safety_note ?? null, background_note ?? null,
+            responsible_ta_id !== undefined ? responsible_ta_id : null,
+            required_labours !== undefined ? JSON.stringify(required_labours) : null,
             machineId
         ]
     );
