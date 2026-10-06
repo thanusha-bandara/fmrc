@@ -9,13 +9,13 @@ import {
 // Admin-only: register a new agricultural machine into the central database.
 export const registerMachine = async (req, res) => {
     try {
-        const { machine_name, model, supplier, registration_date } = req.body;
+        const { machine_name, model, supplier, registration_date, responsible_ta_id, required_labours } = req.body;
 
         if (!machine_name || !registration_date) {
             return res.status(400).json({ success: false, message: "machine_name and registration_date are required." });
         }
 
-        const machine = await createMachinery({ machine_name, model, supplier, registration_date });
+        const machine = await createMachinery({ machine_name, model, supplier, registration_date, responsible_ta_id, required_labours });
         res.status(201).json({ success: true, message: "Machine registered successfully.", machine });
     } catch (error) {
         res.status(500).json({ success: false, message: "Error registering machine.", error: error.message });

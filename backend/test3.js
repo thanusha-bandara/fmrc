@@ -1,0 +1,9 @@
+
+import pool from './config/db.js';
+async function test() {
+  const [rows] = await pool.query('SELECT m.machine_name, m.responsible_ta_id, t.test_id, t.status FROM test_records t JOIN machinery m ON t.machine_id = m.machine_id');
+  console.log(rows);
+  process.exit();
+}
+test();
+

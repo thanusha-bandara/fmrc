@@ -130,9 +130,7 @@ export default function MainLayout() {
             </span>
           </div>
 
-          <button className="p-1.5 text-gray-600 hover:bg-gray-100 rounded-full">
-            <Cloud size={20} />
-          </button>
+          
 
           <div className="relative">
             <button 
@@ -143,7 +141,9 @@ export default function MainLayout() {
             </button>
 
             {showUserMenu && (
-              <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg py-2 z-40">
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setShowUserMenu(false)}></div>
+                <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg py-2 z-40">
                 <div className="px-4 py-3 border-b border-gray-100 mb-1">
                    <p className="text-sm font-bold text-gray-900 truncate">{currentUser.name}</p>
                    <p className="text-xs text-gray-500 font-medium truncate">{currentUser.roleTitle}</p>
@@ -152,7 +152,8 @@ export default function MainLayout() {
                 <button className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">Change Password</button>
                 <div className="border-t border-gray-100 my-1"></div>
                 <button onClick={() => { localStorage.removeItem('token'); localStorage.removeItem('userRole'); localStorage.removeItem('userName'); localStorage.removeItem('userId'); window.location.href = '/login'; }} className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 font-medium">Log Out</button>
-              </div>
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -185,15 +186,6 @@ export default function MainLayout() {
             </nav>
           </div>
 
-          <div className="p-4 border-t border-gray-100">
-            <button 
-              onClick={() => setShowSupportModal(true)}
-              className={`w-full flex items-center ${sidebarOpen ? 'gap-3' : 'justify-center'} text-gray-600 hover:text-gray-900 text-sm font-medium transition-colors px-1`}
-            >
-              <HelpCircle size={20} className="flex-shrink-0" />
-              {sidebarOpen && <span>Support</span>}
-            </button>
-          </div>
         </aside>
 
         {/*  MAIN CONTENT  */}
@@ -202,24 +194,7 @@ export default function MainLayout() {
         </main>
       </div>
 
-      {/* Support Modal */}
-      {showSupportModal && (
-        <div className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-white rounded-xl max-w-lg w-full p-6 shadow-xl relative">
-            <button 
-              onClick={() => setShowSupportModal(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-700"
-            >
-              <X size={20} />
-            </button>
-            <h3 className="text-lg font-bold text-gray-900 mb-3">Dashboard Guide & Support</h3>
-            <div className="text-sm text-gray-600 space-y-2 max-h-80 overflow-y-auto">
-              <p>• <strong>Sidebar</strong>: Switch between modules.</p>
-              <p>• <strong>System Synced</strong>: Shows offline IndexedDB data synchronization state.</p>
-            </div>
-          </div>
-        </div>
-      )}
+      
 
     </div>
   );

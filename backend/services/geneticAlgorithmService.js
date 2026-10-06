@@ -30,7 +30,8 @@ const createRandomSchedule = (validTests, fields, tas, holidays = [], allSeasons
         i++;
     }
 
-    validTests.forEach((test, index) => {
+    const counters = { any: 0 };
+    validTests.forEach((test) => {
         let assignedDay = null;
 
         if (test.requiredSeason && test.requiredSeason !== 'Any' && allSeasons && allSeasons.length > 0) {
@@ -42,19 +43,47 @@ const createRandomSchedule = (validTests, fields, tas, holidays = [], allSeasons
                 );
             });
             if (validSeasonDays.length > 0) {
-                // Try to respect FCFS within the season: map index to a valid day sequentially
-                const seasonIdx = index % validSeasonDays.length;
-                assignedDay = validSeasonDays[seasonIdx].dateString;
+                if (counters[test.requiredSeason] === undefined) counters[test.requiredSeason] = 0;
+                let attempts = 0;
+                while (attempts < validSeasonDays.length) {
+                    const seasonIdx = counters[test.requiredSeason] % validSeasonDays.length;
+                    const candidateDay = validSeasonDays[seasonIdx].dateString;
+                    counters[test.requiredSeason]++;
+                    if (!schedule[candidateDay] || schedule[candidateDay].length === 0) {
+                        assignedDay = candidateDay;
+                        break;
+                    }
+                    attempts++;
+                }
             }
         }
         
         if (!assignedDay) {
-            const dayIndex = index % days.length; 
-            assignedDay = days[dayIndex].dateString;
+            let attempts = 0;
+            while (attempts < days.length) {
+                const dayIndex = counters.any % days.length; 
+                const candidateDay = days[dayIndex].dateString;
+                counters.any++;
+                if (!schedule[candidateDay] || schedule[candidateDay].length === 0) {
+                    assignedDay = candidateDay;
+                    break;
+                }
+                attempts++;
+            }
+            // fallback if totally full (shouldn't happen)
+            if (!assignedDay) {
+                assignedDay = days[counters.any % days.length].dateString;
+                counters.any++;
+            }
         }
         
         const randomTimeSlot = timeSlots[Math.floor(Math.random() * timeSlots.length)];
-        const randomTA = tas.length > 0 ? tas[Math.floor(Math.random() * tas.length)] : null;
+        let randomTA = tas.length > 0 ? tas[Math.floor(Math.random() * tas.length)] : null;
+        
+        if (test.requiredTA) {
+            const matchedTA = tas.find(t => t.user_id === test.requiredTA);
+            if (matchedTA) randomTA = matchedTA;
+        }
         
         if (!schedule[assignedDay]) schedule[assignedDay] = [];
         schedule[assignedDay].push({
@@ -101,7 +130,9 @@ const mutateSchedule = (schedule, fields, tas, globalDays = []) => {
         // Also mutate its properties
         testToMove.time_slot = timeSlots[Math.floor(Math.random() * timeSlots.length)];
         testToMove.field_id = null;
-        if (tas && tas.length > 0) {
+        if (testToMove.test.requiredTA) {
+            testToMove.assigned_ta_id = testToMove.test.requiredTA;
+        } else if (tas && tas.length > 0) {
             testToMove.assigned_ta_id = tas[Math.floor(Math.random() * tas.length)].user_id;
         }
     }
@@ -151,8 +182,8 @@ const crossoverSchedules = (sched1, sched2) => {
     return childSchedule;
 };
 
-export const runGA = (validTests, rainyDates = [], fields = [], tas = [], holidays = [], taLeaves = [], farmDailyStatus = {}, allSeasons = []) => {
-    if (validTests.length === 0) return {};
+export const runGA = (validTests, rainyDates = [], fields = [], tas = [], holidays = [], taLeaves = [], farmDailyStatus = {}, allSeasons = [], labourLeaves = []) => {
+    if (validTests.length === 0) return { schedule: {}, score: 1000, accuracy: 100 };
 
     // Generate full days array once for mutation and crossover to know the universe of days
     const requiredDays = Math.max(365, validTests.length * 2);
@@ -183,8 +214,9 @@ export const runGA = (validTests, rainyDates = [], fields = [], tas = [], holida
 
         Object.entries(schedule).forEach(([dateStr, assignments]) => {
             // ONLY ONE TEST PER DAY CONSTRAINT
+            // User explicitly requested ONLY ONE test per day across the entire institute
             if (assignments.length > 1) {
-                score -= 5000 * (assignments.length - 1); 
+                score -= 50000 * (assignments.length - 1); 
             }
 
             assignments.forEach(assignment => {
@@ -204,22 +236,33 @@ export const runGA = (validTests, rainyDates = [], fields = [], tas = [], holida
 
                 // TA Logic
                 if (assignment.assigned_ta_id) {
-                    // 1. Check TA double booking
-                    const taKey = `${assignment.assigned_ta_id}-${assignment.time_slot}`;
+                    // 1. Check TA double booking ON THE SAME DAY
+                    const taKey = `${dateStr}-${assignment.assigned_ta_id}-${assignment.time_slot}`;
                     if (taAssignments[taKey]) {
-                        score -= 100; 
+                        score -= 50000; // HUGE penalty for double booking the SAME TA on the SAME day and timeslot
                     }
                     taAssignments[taKey] = true;
+                    
+                    // If time_slot is 'Full Day', they can't do Morning or Afternoon either
+                    if (assignment.time_slot === 'Full Day') {
+                        taAssignments[`${dateStr}-${assignment.assigned_ta_id}-Morning`] = true;
+                        taAssignments[`${dateStr}-${assignment.assigned_ta_id}-Afternoon`] = true;
+                    } else {
+                        // If Morning/Afternoon, they can't do Full Day
+                        taAssignments[`${dateStr}-${assignment.assigned_ta_id}-Full Day`] = true;
+                    }
 
                     // 2. Check if TA is on leave this day
                     const isTAOnLeave = taLeaves.some(l => l.user_id === assignment.assigned_ta_id && l.leave_date === dateStr);
                     if (isTAOnLeave) {
-                        score -= 100; 
+                        score -= 5000; 
                     }
 
                     // 3. Check Expert TA preference
                     if (assignment.test.requiredTA && assignment.test.requiredTA !== assignment.assigned_ta_id) {
-                        score -= 50; 
+                        score -= 5000; 
+                    } else if (assignment.test.requiredTA && assignment.test.requiredTA === assignment.assigned_ta_id) {
+                        score += 500;
                     }
                 }
 
@@ -235,6 +278,20 @@ export const runGA = (validTests, rainyDates = [], fields = [], tas = [], holida
                         if (assignment.test.requiresWater && !dailyStatus.is_water_available) {
                             score -= 500;
                         }
+                    }
+                }
+
+                // Skilled Labour Constraint Check
+                if (assignment.test.requiredLabours && assignment.test.requiredLabours.length > 0) {
+                    const requiredLabourIds = assignment.test.requiredLabours;
+                    const availableLabours = requiredLabourIds.filter(labourId => {
+                        const isLabourOnLeave = labourLeaves.some(l => l.labour_id === labourId && l.leave_date === dateStr);
+                        return !isLabourOnLeave;
+                    });
+                    
+                    // If all required labours are on leave, heavily penalize
+                    if (availableLabours.length === 0) {
+                        score -= 5000;
                     }
                 }
 
@@ -295,6 +352,20 @@ export const runGA = (validTests, rainyDates = [], fields = [], tas = [], holida
         const ft = fieldTestsOnRainyDays[i];
         const lt = labTestsOnSunnyDays[i];
 
+        // Check if swap would cause TA collision
+        const ftTaId = ft.assignment.assigned_ta_id;
+        const ltTaId = lt.assignment.assigned_ta_id;
+        
+        const ftTargetDayTests = bestSchedule[lt.dateStr] || [];
+        const ltTargetDayTests = bestSchedule[ft.dateStr] || [];
+        
+        const ftCollision = ftTargetDayTests.some(a => a !== lt.assignment && a.assigned_ta_id === ftTaId);
+        const ltCollision = ltTargetDayTests.some(a => a !== ft.assignment && a.assigned_ta_id === ltTaId);
+        
+        if (ftCollision || ltCollision) {
+            continue; // Skip swap to prevent TA double booking
+        }
+
         // Swap without overwriting other tests on the same day
         bestSchedule[ft.dateStr] = bestSchedule[ft.dateStr].filter(a => a !== ft.assignment);
         bestSchedule[ft.dateStr].push(lt.assignment);
@@ -306,5 +377,12 @@ export const runGA = (validTests, rainyDates = [], fields = [], tas = [], holida
         ft.assignment.scheduled_date = lt.dateStr;
     }
 
-    return bestSchedule;
+    const finalScore = calculateFitness(bestSchedule);
+    let accuracy = 100;
+    if (finalScore < 1000) {
+        // Just a heuristic mapping for display
+        accuracy = Math.max(0, 100 - Math.abs(finalScore) / 50);
+    }
+    
+    return { schedule: bestSchedule, score: finalScore, accuracy: Math.round(accuracy) };
 };
