@@ -38,7 +38,8 @@ export const generateSchedule = async (req, res) => {
             return acc;
         }, {});
 
-        const finalSchedule = runGA(filteredTests, rainyDates, [], tas, allHolidays, taLeaves, farmDailyStatus, allSeasons);
+        const gaResult = runGA(filteredTests, rainyDates, [], tas, allHolidays, taLeaves, farmDailyStatus, allSeasons);
+        const finalSchedule = gaResult.schedule;
 
         // Persist so GET /api/schedule reflects the newly generated calendar
         const testIds = filteredTests.map(t => t.test_id);

@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Users, UserPlus, Ban, Trash2, X } from 'lucide-react';
+import Swal from 'sweetalert2';
 import { listUsers, registerUser, deactivateUser, updateUser, deleteUser } from '../api/users';
 import { getErrorMessage } from '../api/client';
 
@@ -39,6 +40,7 @@ export default function AdminUserManagement() {
       setShowModal(false);
       setForm(emptyForm);
       loadUsers();
+      Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'User added successfully', showConfirmButton: false, timer: 3000 });
     } catch (err) {
       setError(getErrorMessage(err, 'Could not create user.'));
     } finally {
@@ -60,10 +62,12 @@ export default function AdminUserManagement() {
   };
 
   const handleDelete = async (user) => {
-    if (!window.confirm(`Delete user "${user.full_name}"? This cannot be undone.`)) return;
+    const result = await Swal.fire({ title: 'Are you sure?', text: `Delete user "${user.full_name}"? This cannot be undone.`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#006B33', cancelButtonColor: '#d33', confirmButtonText: 'Yes, delete it!' });
+    if (!result.isConfirmed) return;
     try {
       await deleteUser(user.user_id);
       loadUsers();
+      Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'User deleted', showConfirmButton: false, timer: 3000 });
     } catch (err) {
       setError(getErrorMessage(err, 'Could not delete user.'));
     }
