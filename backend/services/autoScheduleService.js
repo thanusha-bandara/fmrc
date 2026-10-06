@@ -7,22 +7,35 @@ import { getTechnicalAssistants, getTALeaves } from '../models/user.js';
 import { getCustomHolidays } from '../models/calendar.js';
 
 export const persistSchedule = async (testIds, bestSchedule) => {
-    if (testIds.length > 0) {
-        await db.query(`DELETE FROM Schedules WHERE test_id IN (?) AND status IN ('Scheduled', 'Rescheduled')`, [testIds]);
-    }
+    const connection = await db.getConnection();
+    try {
+        await connection.beginTransaction();
 
-    for (const [dateStr, assignments] of Object.entries(bestSchedule)) {
-        for (const assignment of assignments) {
-            await db.query(`
-                INSERT INTO Schedules (test_id, assigned_ta_id, scheduled_date, time_slot, status)
-                VALUES (?, ?, ?, ?, 'Scheduled')
-            `, [
-                assignment.test.test_id,
-                assignment.assigned_ta_id,
-                assignment.scheduled_date,
-                assignment.time_slot
-            ]);
+        if (testIds.length > 0) {
+            await connection.query(`DELETE FROM Schedules WHERE test_id IN (?) AND status IN ('Scheduled', 'Rescheduled')`, [testIds]);
         }
+
+        for (const [dateStr, assignments] of Object.entries(bestSchedule)) {
+            for (const assignment of assignments) {
+                await connection.query(`
+                    INSERT INTO Schedules (test_id, assigned_ta_id, scheduled_date, time_slot, status)
+                    VALUES (?, ?, ?, ?, 'Scheduled')
+                `, [
+                    assignment.test.test_id,
+                    assignment.assigned_ta_id,
+                    assignment.scheduled_date,
+                    assignment.time_slot
+                ]);
+            }
+        }
+
+        await connection.commit();
+    } catch (error) {
+        await connection.rollback();
+        console.error("Error in persistSchedule:", error.message);
+        throw error;
+    } finally {
+        connection.release();
     }
 };
 

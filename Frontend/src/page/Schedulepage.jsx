@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Swal from 'sweetalert2';
 import { Calendar, momentLocalizer } from 'react-big-calendar';
 import moment from 'moment';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
@@ -45,7 +46,8 @@ const SchedulePage = () => {
     setError('');
     try {
       await generateSchedule();
-      load();
+        await Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Schedule Generated Successfully', showConfirmButton: false, timer: 2000 });
+        setTimeout(() => { load(); }, 500);
     } catch (err) {
       setError(getErrorMessage(err, 'Could not generate the schedule.'));
     } finally {
