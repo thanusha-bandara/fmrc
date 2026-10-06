@@ -7,6 +7,8 @@ import AssignedTests from './page/AssignedTests';
 import PendingTests from './page/PendingTests';
 import CompletedTests from './page/CompletedTests';
 import Login from './page/Login';
+import ForgotPassword from './page/ForgotPassword';
+import Profile from './page/Profile';
 import Machinery from './page/Machinery';
 import AdminUserManagement from './page/AdminUserManagement';
 import FinalizeReport from './page/tests/FinalizeReport';
@@ -36,6 +38,10 @@ const router = createBrowserRouter([
     element: <Login />
   },
   {
+    path: "/forgot-password",
+    element: <ForgotPassword />
+  },
+  {
     path: "/",
     element: <ProtectedLayout />,
     children: [
@@ -46,6 +52,10 @@ const router = createBrowserRouter([
       {
         path: "dashboard",
         element: <Dashboard />
+      },
+      {
+        path: "profile",
+        element: <Profile />
       },
       {
         path: "machinery",

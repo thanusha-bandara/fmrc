@@ -255,7 +255,7 @@ CREATE TABLE `test_records` (
   `test_name` varchar(100) NOT NULL,
   `is_field_test` tinyint(1) DEFAULT '1',
   `requires_water` tinyint(1) DEFAULT '0',
-  `required_season` enum('Yala','Maha','Any') DEFAULT 'Any',
+  `required_season` enum('Ploughing','Harvesting','Any') DEFAULT 'Any',
   `technical_assistant_id` int DEFAULT NULL,
   `mechanical_engineer_id` int DEFAULT NULL,
   `chief_engineer_id` int DEFAULT NULL,
@@ -329,6 +329,23 @@ LOCK TABLES `users` WRITE;
 INSERT INTO `users` VALUES (1,'System Administrator','admin','admin@fmrc.gov.lk','$2b$10$aHoxlNdpnZNIb0d6uVv24.MExlUc9buhqmyIbRu1LKBxoW8yG0UT2',NULL,'Admin',1,'2026-08-26 19:30:58'),(2,'kamal rathnayaka','kamal','kamal@gmail.com','$2b$10$tjtkt/mKZZkSMlvYTuX3ROVxz8E9nVtOUing.98pGV5tTT1WtXUf6','0714562345','Technical_Assistant',1,'2026-08-26 19:47:50'),(3,'amal','amal','amal@gmail.com','$2b$10$81mCQxSAgE0WrygaY/GMk.kXtyWKGOnIBTv.7JjmkTQtRBli9dy4O','9178794748','Mechanical_Engineer',1,'2026-08-26 19:48:54'),(4,'upul','upul','lzdlcsjldhvk@gmail.com','$2b$10$nHcndsNJkzZMmn4IPeLarepSpko9bT9pT/cl5poAI3NKYFq9mYOSK','820987493','Chief_Engineer',1,'2026-08-26 19:49:48'),(5,'Bimal Rathnayaka','Bimal','Bimal@gmail.com','$2b$10$NWF9Gf/32bx9nlMzRIZkku5W86wPO4iA0FOHgaWP81ax6kz3JANbW','8686866','Technical_Assistant',1,'2026-08-27 05:31:00'),(6,'Nimal Rathnayake','Nimal','Nimal@Gmail.com','$2b$10$bSSoHjoTQVt9PMSnxhLWnOZrd/MaHMQvcEpbXyD8TiDVIYF23XKmG','886565','Technical_Assistant',1,'2026-08-27 05:32:10');
 /*!40000 ALTER TABLE `users` ENABLE KEYS */;
 UNLOCK TABLES;
+
+--
+-- Table structure for table `password_reset_requests`
+--
+
+DROP TABLE IF EXISTS `password_reset_requests`;
+CREATE TABLE `password_reset_requests` (
+  `request_id` int NOT NULL AUTO_INCREMENT,
+  `user_id` int NOT NULL,
+  `username` varchar(50) DEFAULT NULL,
+  `status` enum('Pending','Completed') NOT NULL DEFAULT 'Pending',
+  `requested_at` timestamp NULL DEFAULT CURRENT_TIMESTAMP,
+  `completed_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`request_id`),
+  KEY `user_id` (`user_id`),
+  CONSTRAINT `password_reset_requests_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 --
 -- Table structure for table `weather_logs`

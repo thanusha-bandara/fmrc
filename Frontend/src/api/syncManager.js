@@ -27,8 +27,14 @@ export const syncOfflineData = async () => {
                 await db.syncQueue.delete(item.id);
             } catch (err) {
                 console.error("Failed to sync item", item, err);
-                // If it fails due to network, it will stay in DB for next time.
-                // If it fails with 4xx/5xx, you might want to handle it (or delete it to avoid endless loops).
+                // A 4xx means the server rejected the request itself (bad/expired auth, stale
+                // data, etc) -- retrying it later won't change that, so drop it instead of
+                // leaving it to fail forever on every future sync. Only network/5xx failures
+                // are left in the queue to retry.
+                const status = err.response?.status;
+                if (status >= 400 && status < 500) {
+                    await db.syncQueue.delete(item.id);
+                }
             }
         }
         

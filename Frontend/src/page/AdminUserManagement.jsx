@@ -3,6 +3,8 @@ import { Users, UserPlus, Ban, Trash2, X } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { listUsers, registerUser, deactivateUser, updateUser, deleteUser } from '../api/users';
 import { getErrorMessage } from '../api/client';
+import PasswordResetRequests from '../component/PasswordResetRequests';
+import { PASSWORD_PATTERN, PASSWORD_REQUIREMENTS_MESSAGE } from '../utils/password';
 
 const ROLE_LABELS = {
   Admin: 'Admin',
@@ -33,8 +35,12 @@ export default function AdminUserManagement() {
 
   const handleCreate = async (e) => {
     e.preventDefault();
-    setSaving(true);
     setError('');
+    if (!PASSWORD_PATTERN.test(form.password)) {
+      setError(PASSWORD_REQUIREMENTS_MESSAGE);
+      return;
+    }
+    setSaving(true);
     try {
       await registerUser(form);
       setShowModal(false);
@@ -88,6 +94,8 @@ export default function AdminUserManagement() {
           {error}
         </div>
       )}
+
+      <PasswordResetRequests />
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
         <table className="w-full text-left">
@@ -160,9 +168,10 @@ export default function AdminUserManagement() {
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20" />
               </div>
               <div>
-                <label className="block text-sm text-gray-600 mb-1">Temporary Password * (min 8 chars)</label>
-                <input required minLength={8} type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })}
+                <label className="block text-sm text-gray-600 mb-1">Temporary Password *</label>
+                <input required type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })}
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20" />
+                <p className="mt-1.5 text-[11px] text-gray-400">{PASSWORD_REQUIREMENTS_MESSAGE}</p>
               </div>
               <div>
                 <label className="block text-sm text-gray-600 mb-1">Role *</label>

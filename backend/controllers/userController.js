@@ -9,10 +9,20 @@ import {
     updateUser,
     updateUserPassword,
     deleteUser,
-    getUsersByRole
+    getUsersByRole,
+    hasPendingResetRequest,
+    createResetRequest,
+    listPendingResetRequests,
+    completeResetRequests
 } from "../models/user.js";
 
 const SALT_ROUNDS = 10;
+
+// Requires exactly 8 characters, with one uppercase letter, one lowercase letter, one number,
+// and one special character.
+const STRONG_PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8}$/;
+const PASSWORD_REQUIREMENTS_MESSAGE =
+    "Password must be exactly 8 characters and include an uppercase letter, a lowercase letter, a number, and a special character.";
 
 const signToken = (user) => {
     return jwt.sign(
@@ -63,6 +73,68 @@ export const login = async (req, res) => {
     }
 };
 
+// Public: a user who forgot their password asks the administrator to set a new one.
+export const requestPasswordReset = async (req, res) => {
+    try {
+        const { username } = req.body;
+        if (!username) {
+            return res.status(400).json({ success: false, message: "Username is required." });
+        }
+
+        const user = await findUserByUsernameOrEmail(username);
+        if (!user) {
+            return res.status(404).json({ success: false, message: "No account found with that username." });
+        }
+        if (!user.is_active) {
+            return res.status(403).json({ success: false, message: "This account has been deactivated. Contact the System Administrator." });
+        }
+
+        if (!(await hasPendingResetRequest(user.user_id))) {
+            await createResetRequest(user.user_id, user.username);
+        }
+
+        res.status(200).json({ success: true, message: "Your request has been sent to the administrator." });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Error sending password reset request.", error: error.message });
+    }
+};
+
+// Admin-only: list users waiting for a password reset.
+export const listPasswordResetRequests = async (req, res) => {
+    try {
+        const requests = await listPendingResetRequests();
+        res.status(200).json({ success: true, requests });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Error fetching password reset requests.", error: error.message });
+    }
+};
+
+// Admin-only: set a new password for a user and close their pending reset requests.
+export const setUserPassword = async (req, res) => {
+    try {
+        const { newPassword } = req.body;
+        if (!newPassword) {
+            return res.status(400).json({ success: false, message: "newPassword is required." });
+        }
+        if (!STRONG_PASSWORD_PATTERN.test(newPassword)) {
+            return res.status(400).json({ success: false, message: PASSWORD_REQUIREMENTS_MESSAGE });
+        }
+
+        const user = await findUserById(req.params.id);
+        if (!user) {
+            return res.status(404).json({ success: false, message: "User not found." });
+        }
+
+        const password_hash = await bcrypt.hash(newPassword, SALT_ROUNDS);
+        await updateUserPassword(user.user_id, password_hash);
+        await completeResetRequests(user.user_id);
+
+        res.status(200).json({ success: true, message: "Password updated successfully." });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Error setting password.", error: error.message });
+    }
+};
+
 // Admin-only: onboard a new Technical Assistant / Mechanical Engineer / Chief Engineer / Admin.
 export const registerUser = async (req, res) => {
     try {
@@ -77,8 +149,8 @@ export const registerUser = async (req, res) => {
             return res.status(400).json({ success: false, message: `role must be one of: ${allowedRoles.join(", ")}` });
         }
 
-        if (password.length < 8) {
-            return res.status(400).json({ success: false, message: "Password must be at least 8 characters long." });
+        if (!STRONG_PASSWORD_PATTERN.test(password)) {
+            return res.status(400).json({ success: false, message: PASSWORD_REQUIREMENTS_MESSAGE });
         }
 
         const existing = await findUserByUsernameOrEmail(username) || await findUserByUsernameOrEmail(email);
@@ -174,8 +246,8 @@ export const changePassword = async (req, res) => {
         if (!currentPassword || !newPassword) {
             return res.status(400).json({ success: false, message: "currentPassword and newPassword are required." });
         }
-        if (newPassword.length < 8) {
-            return res.status(400).json({ success: false, message: "New password must be at least 8 characters long." });
+        if (!STRONG_PASSWORD_PATTERN.test(newPassword)) {
+            return res.status(400).json({ success: false, message: PASSWORD_REQUIREMENTS_MESSAGE });
         }
 
         const [rawUser] = await db.query(

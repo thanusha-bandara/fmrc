@@ -11,6 +11,9 @@ export const updateMyProfile = (payload) =>
 export const changeMyPassword = (currentPassword, newPassword) =>
     apiClient.put("/users/me/password", { currentPassword, newPassword }).then((r) => r.data);
 
+export const requestPasswordReset = (username) =>
+    apiClient.post("/users/password-reset-request", { username }).then((r) => r.data);
+
 export const logout = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("userRole");
