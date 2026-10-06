@@ -190,7 +190,9 @@ export default function MainLayout() {
             </button>
 
             {showUserMenu && (
-              <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg py-2 z-40">
+              <>
+                <div className="fixed inset-0 z-30" onClick={() => setShowUserMenu(false)}></div>
+                <div className="absolute right-0 mt-2 w-56 bg-white border border-gray-200 rounded-xl shadow-lg py-2 z-40">
                 <button
                   onClick={() => { setShowUserMenu(false); navigate('/profile'); }}
                   className="w-full text-left px-4 py-3 border-b border-gray-100 mb-1 hover:bg-gray-50"
