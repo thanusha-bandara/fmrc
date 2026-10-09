@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { FileCheck2, Wrench, Eye, Download, X } from 'lucide-react';
+import Swal from 'sweetalert2';
 import { listPendingReports, listReports, decideReport, viewReport, downloadReport } from '../../api/reports';
 import { getErrorMessage } from '../../api/client';
 
@@ -15,7 +16,6 @@ export default function ReportsForApproval() {
   const [approved, setApproved] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
 
   const [activeReport, setActiveReport] = useState(null);
   const [decision, setDecision] = useState('Approved');
@@ -62,11 +62,14 @@ export default function ReportsForApproval() {
   };
 
   const handleDecide = async () => {
+    const result = await Swal.fire({ title: 'Are you sure?', text: `Submit final decision as "${decision}"? This action cannot be undone.`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#006B33', cancelButtonColor: '#d33', confirmButtonText: 'Yes, submit decision' });
+    if (!result.isConfirmed) return;
+
     setSaving(true);
     setError('');
     try {
       await decideReport(activeReport.report_id, decision, comments);
-      setSuccessMessage(`Report for ${activeReport.machine_name} ${decision.toLowerCase()}.`);
+      Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `Report for ${activeReport.machine_name} ${decision.toLowerCase()}.`, showConfirmButton: false, timer: 3000 });
       setActiveReport(null);
       load();
     } catch (err) {
@@ -87,9 +90,6 @@ export default function ReportsForApproval() {
 
       {error && (
         <div className="rounded-md border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700 font-medium">{error}</div>
-      )}
-      {successMessage && (
-        <div className="rounded-md border border-green-200 bg-green-50 px-4 py-2.5 text-sm text-green-700 font-medium">{successMessage}</div>
       )}
 
       <div className="flex gap-2">

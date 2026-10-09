@@ -42,6 +42,9 @@ const SchedulePage = () => {
   useEffect(() => { load(); }, []);
 
   const handleGenerate = async () => {
+    const result = await Swal.fire({ title: 'Are you sure?', text: 'Generate new schedule? This may alter existing uncompleted schedules.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#006B33', cancelButtonColor: '#d33', confirmButtonText: 'Yes, generate it' });
+    if (!result.isConfirmed) return;
+
     setGenerating(true);
     setError('');
     try {

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
+import Swal from 'sweetalert2';
 import { saveTestData, submitTest, reviewTest, decideTest } from '../../api/tests';
 import { getErrorMessage } from '../../api/client';
 import { loadSchemaForTest } from './useTestSchema';
@@ -127,7 +128,11 @@ export default function TestDetailModal({ test, role, userId, onClose, onSaved }
     setError('');
     try {
       await saveTestData(test.test_id, buildFormDataObject());
-      alert("Draft saved successfully!");
+      if (!navigator.onLine) {
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Draft saved offline. Will sync when reconnected.', showConfirmButton: false, timer: 4000 });
+      } else {
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Draft saved successfully!', showConfirmButton: false, timer: 3000 });
+      }
       finish();
     } catch (err) {
       setError(getErrorMessage(err, 'Could not save test data.'));
@@ -137,12 +142,19 @@ export default function TestDetailModal({ test, role, userId, onClose, onSaved }
   };
 
   const handleSubmit = async () => {
+    const result = await Swal.fire({ title: 'Are you sure?', text: 'Submit this test for review? You will not be able to edit the data after submission.', icon: 'warning', showCancelButton: true, confirmButtonColor: '#006B33', cancelButtonColor: '#d33', confirmButtonText: 'Yes, submit it' });
+    if (!result.isConfirmed) return;
+
     setSaving(true);
     setError('');
     try {
       await saveTestData(test.test_id, buildFormDataObject());
       await submitTest(test.test_id);
-      alert("Test submitted successfully!");
+      if (!navigator.onLine) {
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Test submitted offline. Will sync when reconnected.', showConfirmButton: false, timer: 4000 });
+      } else {
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Test submitted successfully!', showConfirmButton: false, timer: 3000 });
+      }
       finish();
     } catch (err) {
       setError(getErrorMessage(err, 'Could not submit test.'));
@@ -152,10 +164,18 @@ export default function TestDetailModal({ test, role, userId, onClose, onSaved }
   };
 
   const handleReview = async () => {
+    const result = await Swal.fire({ title: 'Are you sure?', text: `Submit as "${recommendation}"? This will send the test to the Chief Engineer.`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#006B33', cancelButtonColor: '#d33', confirmButtonText: 'Yes, submit review' });
+    if (!result.isConfirmed) return;
+
     setSaving(true);
     setError('');
     try {
       await reviewTest(test.test_id, recommendation, comments);
+      if (!navigator.onLine) {
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Review submitted offline. Will sync when reconnected.', showConfirmButton: false, timer: 4000 });
+      } else {
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Review submitted successfully!', showConfirmButton: false, timer: 3000 });
+      }
       finish();
     } catch (err) {
       setError(getErrorMessage(err, 'Could not review test.'));
@@ -165,10 +185,18 @@ export default function TestDetailModal({ test, role, userId, onClose, onSaved }
   };
 
   const handleDecide = async () => {
+    const result = await Swal.fire({ title: 'Are you sure?', text: `Submit final decision as "${decision}"? This action cannot be undone.`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#006B33', cancelButtonColor: '#d33', confirmButtonText: 'Yes, submit decision' });
+    if (!result.isConfirmed) return;
+
     setSaving(true);
     setError('');
     try {
       await decideTest(test.test_id, decision, comments);
+      if (!navigator.onLine) {
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Decision submitted offline. Will sync when reconnected.', showConfirmButton: false, timer: 4000 });
+      } else {
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Decision submitted successfully!', showConfirmButton: false, timer: 3000 });
+      }
       finish();
     } catch (err) {
       setError(getErrorMessage(err, 'Could not decide on test.'));
