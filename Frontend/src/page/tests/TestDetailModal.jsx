@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { X, Plus, Trash2 } from 'lucide-react';
 import Swal from 'sweetalert2';
-import { saveTestData, submitTest, reviewTest, decideTest } from '../../api/tests';
+import { saveTestData, submitTest, reviewTest, decideTest, saveReviewProgress } from '../../api/tests';
 import { getErrorMessage } from '../../api/client';
 import { loadSchemaForTest } from './useTestSchema';
 import StructuredTestForm from './StructuredTestForm';
@@ -80,6 +80,7 @@ export default function TestDetailModal({ test, role, userId, onClose, onSaved }
   const [recommendation, setRecommendation] = useState('Recommended');
   const [decision, setDecision] = useState('Approved');
   const [comments, setComments] = useState('');
+  const [meReviewProgress, setMeReviewProgress] = useState({});
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
@@ -89,6 +90,7 @@ export default function TestDetailModal({ test, role, userId, onClose, onSaved }
     setDecision('Approved');
     setComments('');
     setError('');
+    setMeReviewProgress(test.me_review_progress || {});
 
     if (test.schema_id) {
       setPairs([]);
@@ -163,6 +165,31 @@ export default function TestDetailModal({ test, role, userId, onClose, onSaved }
     }
   };
 
+  const handleToggleReview = (key) => {
+    setMeReviewProgress(prev => ({
+      ...prev,
+      [key]: !prev[key]
+    }));
+  };
+
+  const handleSaveReviewDraft = async () => {
+    setSaving(true);
+    setError('');
+    try {
+      await saveReviewProgress(test.test_id, meReviewProgress);
+      if (!navigator.onLine) {
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Review progress saved offline.', showConfirmButton: false, timer: 3000 });
+      } else {
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Review progress saved!', showConfirmButton: false, timer: 2000 });
+      }
+      finish();
+    } catch (err) {
+      setError(getErrorMessage(err, 'Could not save review progress.'));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const handleReview = async () => {
     const result = await Swal.fire({ title: 'Are you sure?', text: `Submit as "${recommendation}"? This will send the test to the Chief Engineer.`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#006B33', cancelButtonColor: '#d33', confirmButtonText: 'Yes, submit review' });
     if (!result.isConfirmed) return;
@@ -207,7 +234,7 @@ export default function TestDetailModal({ test, role, userId, onClose, onSaved }
 
   const renderParams = (readOnly) =>
     activeSchema ? (
-      <StructuredTestForm schema={activeSchema} formData={structuredData} onChange={setStructuredData} readOnly={readOnly} />
+      <StructuredTestForm schema={activeSchema} formData={structuredData} onChange={setStructuredData} readOnly={readOnly} reviewMode={mode === 'review'} reviewProgress={meReviewProgress} onToggleReview={handleToggleReview} />
     ) : schemaLoading ? (
       <p className="text-sm text-gray-400">Loading form...</p>
     ) : (
@@ -259,9 +286,14 @@ export default function TestDetailModal({ test, role, userId, onClose, onSaved }
             </div>
             <textarea value={comments} onChange={(e) => setComments(e.target.value)} rows={3} placeholder="Comments (optional)"
               className="w-full rounded-lg border border-gray-300 p-2.5 text-sm resize-none outline-none focus:ring-2 focus:ring-[#006B33]/20 focus:border-[#006B33]" />
-            <button onClick={handleReview} disabled={saving} className="w-full bg-[#006B33] text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-green-700 disabled:opacity-60">
-              {saving ? 'Submitting...' : 'Submit Review'}
-            </button>
+            <div className="flex gap-3 pt-2">
+              <button onClick={handleSaveReviewDraft} disabled={saving} className="flex-1 border border-[#006B33] text-[#006B33] py-2.5 rounded-lg font-semibold text-sm hover:bg-green-50 disabled:opacity-60">
+                {saving ? 'Saving...' : 'Save Progress'}
+              </button>
+              <button onClick={handleReview} disabled={saving} className="flex-1 bg-[#006B33] text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-green-700 disabled:opacity-60">
+                {saving ? 'Submitting...' : 'Submit Review'}
+              </button>
+            </div>
           </div>
         )}
 

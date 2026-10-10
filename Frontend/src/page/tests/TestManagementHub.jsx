@@ -22,9 +22,15 @@ function bucketize(tests, role, queueType, userId) {
     return mine.filter((t) => ['Submitted', 'Reviewed', 'Approved', 'Rejected'].includes(t.status));
   }
   if (role === 'ME') {
-    if (queueType === 'assigned') return tests.filter((t) => t.status === 'Submitted');
-    if (queueType === 'pending') return tests.filter((t) => t.status === 'Reviewed' && t.mechanical_engineer_id === userId);
-    return tests.filter((t) => t.mechanical_engineer_id === userId && ['Approved', 'Rejected'].includes(t.status));
+    const hasProgress = (p) => {
+      try {
+        const obj = typeof p === 'string' ? JSON.parse(p) : (p || {});
+        return Object.values(obj).some(v => v === true);
+      } catch { return false; }
+    };
+    if (queueType === 'assigned') return tests.filter((t) => t.status === 'Submitted' && !hasProgress(t.me_review_progress) && (!t.mechanical_engineer_id || t.mechanical_engineer_id === userId));
+    if (queueType === 'pending') return tests.filter((t) => t.status === 'Submitted' && hasProgress(t.me_review_progress) && t.mechanical_engineer_id === userId);
+    return tests.filter((t) => ['Reviewed', 'Approved', 'Rejected'].includes(t.status) && t.mechanical_engineer_id === userId);
   }
   if (queueType === 'assigned') return tests.filter((t) => t.status === 'Reviewed' && t.me_recommendation === 'Recommended');
   if (queueType === 'pending') return tests.filter((t) => t.status === 'Reviewed' && t.me_recommendation === 'Not Recommended');
@@ -60,9 +66,9 @@ function AssignedTestItem({ t, isSelected, onClick, today }) {
 }
 
 // Shared item row for Pending / Completed cards
-function SimpleTestItem({ t, showCheck }) {
+function SimpleTestItem({ t, showCheck, onClick }) {
   return (
-    <div className="flex items-center justify-between py-2.5 border-b border-gray-100 last:border-0">
+    <div onClick={onClick} className="flex items-center justify-between py-2.5 border-b border-gray-100 last:border-0 cursor-pointer hover:bg-gray-50 transition-colors px-2 -mx-2 rounded-lg">
       <div>
         <p className="font-bold text-sm text-gray-900">{t.machine_name} {t.machine_model ? `(${t.machine_model})` : ''}</p>
         <p className="text-xs text-gray-500">{t.test_name}</p>
@@ -359,7 +365,7 @@ export default function TestManagementHub({ role }) {
           <div className="flex-1 overflow-y-auto px-5 min-h-0 pb-5">
             {loading ? <p className="text-sm text-gray-400 py-3">Loading...</p>
             : pending.length === 0 ? <p className="text-sm text-gray-400 py-3">Nothing here right now.</p>
-            : pending.map(t => <SimpleTestItem key={t.test_id} t={t} showCheck={false} />)}
+            : pending.map(t => <SimpleTestItem key={t.test_id} t={t} showCheck={false} onClick={() => setActiveTest(t)} />)}
           </div>
         </div>
 
@@ -380,7 +386,7 @@ export default function TestManagementHub({ role }) {
           <div className="flex-1 overflow-y-auto px-5 min-h-0 pb-5">
             {loading ? <p className="text-sm text-gray-400 py-3">Loading...</p>
             : completed.length === 0 ? <p className="text-sm text-gray-400 py-3">Nothing here right now.</p>
-            : completed.map(t => <SimpleTestItem key={t.test_id} t={t} showCheck={true} />)}
+            : completed.map(t => <SimpleTestItem key={t.test_id} t={t} showCheck={true} onClick={() => setActiveTest(t)} />)}
           </div>
         </div>
 

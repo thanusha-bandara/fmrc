@@ -245,3 +245,20 @@ export const approveReschedule = async (req, res) => {
     }
 };
 
+
+export const saveReviewProgress = async (req, res) => {
+    try {
+        const { progress } = req.body;
+        const testId = req.params.id;
+        const existing = await getTestRecordById(testId);
+        if (!existing) return res.status(404).json({ success: false, message: 'Test not found.' });
+        if (existing.status !== 'Submitted') {
+            return res.status(409).json({ success: false, message: `Cannot save review progress, test is ${existing.status}.` });
+        }
+        await db.query('UPDATE Test_Records SET me_review_progress = ?, mechanical_engineer_id = ? WHERE test_id = ?', [JSON.stringify(progress || {}), req.user.user_id, testId]);
+        res.status(200).json({ success: true, message: 'Review progress saved.' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Error saving review progress.', error: error.message });
+    }
+};
+

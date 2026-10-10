@@ -6,6 +6,7 @@ import {
     saveTestData,
     submitTest,
     reviewTest,
+    saveReviewProgress,
     decideTest,
     removeTest,
     requestReschedule,
@@ -32,6 +33,7 @@ router.put("/:id/data", authorize("Technical_Assistant"), saveTestData);
 router.post("/:id/submit", authorize("Technical_Assistant"), submitTest);
 
 // Mechanical Engineer: review & recommend (Tier 2)
+router.put("/:id/review-progress", authorize("Mechanical_Engineer"), saveReviewProgress);
 router.post("/:id/review", authorize("Mechanical_Engineer"), reviewTest);
 
 // Chief Engineer: final approval (Tier 3)

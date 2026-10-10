@@ -33,3 +33,4 @@ export const requestReschedule = (id, reason) =>
 export const approveReschedule = (id) =>
     apiClient.post(`/tests/${id}/approve-reschedule`).then((r) => r.data);
 
+export const saveReviewProgress = (id, progress) => apiClient.put(`/tests/${id}/review-progress`, { progress }).then(r => r.data);

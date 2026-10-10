@@ -4,7 +4,7 @@ import { computeDerivedFields } from './testFormCalculations';
 const inputClass = "rounded-md border border-gray-300 px-2.5 py-1.5 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20 disabled:bg-gray-50";
 const cellInputClass = "w-20 rounded-md border border-gray-300 px-1.5 py-1 text-xs outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20 disabled:bg-gray-50";
 
-function FieldsSection({ section, formData, onFieldChange, readOnly }) {
+function FieldsSection({ section, formData, onFieldChange, readOnly, reviewMode, reviewProgress = {}, onToggleReview }) {
   return (
     <div className="space-y-2">
       <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">{section.label}</p>
@@ -14,10 +14,18 @@ function FieldsSection({ section, formData, onFieldChange, readOnly }) {
           const value = formData[key] ?? '';
           const disabled = readOnly || field.auto;
           return (
-            <div key={key} className="flex flex-col gap-1">
-              <label className="text-xs text-gray-600">
-                {field.label}{field.auto ? ' (auto)' : ''}
-              </label>
+            <div key={key} className="flex flex-col gap-1 relative">
+              <div className="flex justify-between items-center">
+                <label className="text-xs text-gray-600">
+                  {field.label}{field.auto ? ' (auto)' : ''}
+                </label>
+                {reviewMode && (
+                  <div className="flex items-center gap-1 cursor-pointer select-none" onClick={() => onToggleReview(key)}>
+                    <input type="checkbox" checked={!!reviewProgress[key]} readOnly className="cursor-pointer" />
+                    <span className={`text-[10px] font-bold ${reviewProgress[key] ? 'text-green-600' : 'text-gray-400'}`}>Verify</span>
+                  </div>
+                )}
+              </div>
               {field.multiline ? (
                 <textarea
                   disabled={disabled}
@@ -43,7 +51,7 @@ function FieldsSection({ section, formData, onFieldChange, readOnly }) {
   );
 }
 
-function TableSection({ section, formData, onFieldChange, readOnly }) {
+function TableSection({ section, formData, onFieldChange, readOnly, reviewMode, reviewProgress = {}, onToggleReview }) {
   const hasAuto = section.rows.some((r) => r.auto) || section.columns.some((c) => c.auto);
   return (
     <div className="space-y-2">
@@ -63,8 +71,13 @@ function TableSection({ section, formData, onFieldChange, readOnly }) {
           <tbody>
             {section.rows.map((row) => (
               <tr key={row.key} className="border-b border-gray-100 last:border-b-0">
-                <td className="px-2 py-1 font-medium text-gray-700 whitespace-nowrap bg-gray-50">
-                  {row.label}{row.auto ? ' *' : ''}
+                <td className="px-2 py-1 font-medium text-gray-700 whitespace-nowrap bg-gray-50 flex items-center justify-between">
+                  <span>{row.label}{row.auto ? ' *' : ''}</span>
+                  {reviewMode && (
+                    <div className="flex items-center gap-1 cursor-pointer select-none ml-2" onClick={() => onToggleReview(`${section.key}.${row.key}`)}>
+                      <input type="checkbox" checked={!!reviewProgress[`${section.key}.${row.key}`]} readOnly className="cursor-pointer h-2.5 w-2.5" />
+                    </div>
+                  )}
                 </td>
                 {section.columns.map((col) => {
                   const key = `${section.key}.${row.key}.${col.key}`;
@@ -96,7 +109,7 @@ function TableSection({ section, formData, onFieldChange, readOnly }) {
 // FMRC's real paper data sheets. `formData` is the flat, composite-dotted-key object stored
 // in Test_Records.form_data; auto-calculated fields are recomputed on every change via
 // computeDerivedFields (keyed by the schema's formula_set) and are always read-only.
-export default function StructuredTestForm({ schema, formData, onChange, readOnly }) {
+export default function StructuredTestForm({ schema, formData, onChange, readOnly, reviewMode, reviewProgress, onToggleReview }) {
   if (!schema) return null;
 
   const handleFieldChange = (key, value) => {
@@ -108,9 +121,9 @@ export default function StructuredTestForm({ schema, formData, onChange, readOnl
     <div className="space-y-5">
       {schema.sections.map((section) =>
         section.type === 'table' ? (
-          <TableSection key={section.key} section={section} formData={formData} onFieldChange={handleFieldChange} readOnly={readOnly} />
+          <TableSection key={section.key} section={section} formData={formData} onFieldChange={handleFieldChange} readOnly={readOnly} reviewMode={reviewMode} reviewProgress={reviewProgress} onToggleReview={onToggleReview} />
         ) : (
-          <FieldsSection key={section.key} section={section} formData={formData} onFieldChange={handleFieldChange} readOnly={readOnly} />
+          <FieldsSection key={section.key} section={section} formData={formData} onFieldChange={handleFieldChange} readOnly={readOnly} reviewMode={reviewMode} reviewProgress={reviewProgress} onToggleReview={onToggleReview} />
         )
       )}
     </div>

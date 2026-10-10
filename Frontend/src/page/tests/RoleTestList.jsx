@@ -28,9 +28,15 @@ function bucketize(tests, role, queueType, userId) {
     return mine.filter((t) => ['Submitted', 'Reviewed', 'Approved', 'Rejected'].includes(t.status));
   }
   if (role === 'ME') {
-    if (queueType === 'assigned') return tests.filter((t) => t.status === 'Submitted');
-    if (queueType === 'pending') return tests.filter((t) => t.status === 'Reviewed' && t.mechanical_engineer_id === userId);
-    return tests.filter((t) => t.mechanical_engineer_id === userId && ['Approved', 'Rejected'].includes(t.status));
+    const hasProgress = (p) => {
+      try {
+        const obj = typeof p === 'string' ? JSON.parse(p) : (p || {});
+        return Object.values(obj).some(v => v === true);
+      } catch { return false; }
+    };
+    if (queueType === 'assigned') return tests.filter((t) => t.status === 'Submitted' && !hasProgress(t.me_review_progress) && (!t.mechanical_engineer_id || t.mechanical_engineer_id === userId));
+    if (queueType === 'pending') return tests.filter((t) => t.status === 'Submitted' && hasProgress(t.me_review_progress) && t.mechanical_engineer_id === userId);
+    return tests.filter((t) => ['Reviewed', 'Approved', 'Rejected'].includes(t.status) && t.mechanical_engineer_id === userId);
   }
   // CE
   if (queueType === 'assigned') return tests.filter((t) => t.status === 'Reviewed' && t.me_recommendation === 'Recommended');
