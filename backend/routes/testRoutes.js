@@ -7,7 +7,9 @@ import {
     submitTest,
     reviewTest,
     decideTest,
-    removeTest
+    removeTest,
+    requestReschedule,
+    approveReschedule
 } from "../controllers/testController.js";
 import { authenticate, authorize } from "../middlware/auth.js";
 
@@ -17,6 +19,9 @@ router.use(authenticate);
 
 router.get("/", getTests);
 router.get("/:id", getTest);
+
+router.post("/:id/request-reschedule", authorize("Technical_Assistant"), requestReschedule);
+router.post("/:id/approve-reschedule", authorize("Mechanical_Engineer"), approveReschedule);
 
 
 router.post("/", authorize("Admin", "Mechanical_Engineer"), createTest);

@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Clock } from 'lucide-react';
-import { listTests } from '../../api/tests';
+import { listTests, requestReschedule } from '../../api/tests';
 import { listReports } from '../../api/reports';
 import { getErrorMessage } from '../../api/client';
 import TestDetailModal from './TestDetailModal';
+import Swal from 'sweetalert2';
 
 const currentUserId = () => Number(localStorage.getItem('userId'));
 
@@ -38,9 +39,9 @@ function bucketize(tests, role, queueType, userId) {
 }
 
 const TITLES = {
-  TA: { assigned: 'Assigned Tests', pending: 'Saved Drafts (In Progress)', completed: 'Completed Tests' },
-  ME: { assigned: 'Assigned Tests ', pending: 'Pending Tests ', completed: 'Completed Tests' },
-  CE: { assigned: 'Recommended Tests', pending: 'Non-Recommended Tests', completed: 'Approved Tests' }
+  TA: { assigned: 'Assigned Tests', pending: 'Pending Tests', completed: 'Completed Tests' },
+  ME: { assigned: 'Assigned Tests', pending: 'Pending Tests', completed: 'Completed Tests' },
+  CE: { assigned: 'Assigned Tests', pending: 'Pending Tests', completed: 'Completed Tests' }
 };
 
 const STATUS_STYLES = {
@@ -124,7 +125,9 @@ export default function RoleTestList({ role, queueType }) {
   const [error, setError] = useState('');
   const [reportsByTest, setReportsByTest] = useState({});
   const [activeTest, setActiveTest] = useState(null);
+  const [selectedAssignedTest, setSelectedAssignedTest] = useState(null);
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [machineFilter, setMachineFilter] = useState('');
 
   const load = () => {
     setLoading(true);
@@ -145,14 +148,16 @@ export default function RoleTestList({ role, queueType }) {
 
   useEffect(() => { load(); }, [role, queueType]);
 
-  const bucket = bucketize(tests, role, queueType, userId).sort((a, b) => {
-    if (queueType === 'assigned') {
-      const dA = a.scheduled_date ? new Date(a.scheduled_date).getTime() : Infinity;
-      const dB = b.scheduled_date ? new Date(b.scheduled_date).getTime() : Infinity;
-      return dA - dB;
-    }
-    return new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at);
-  });
+  const bucket = bucketize(tests, role, queueType, userId)
+    .filter(t => t.machine_name.toLowerCase().includes(machineFilter.toLowerCase()))
+    .sort((a, b) => {
+      if (queueType === 'assigned') {
+        const dA = a.scheduled_date ? new Date(a.scheduled_date).getTime() : Infinity;
+        const dB = b.scheduled_date ? new Date(b.scheduled_date).getTime() : Infinity;
+        return dA - dB;
+      }
+      return new Date(b.updated_at || b.created_at) - new Date(a.updated_at || a.created_at);
+    });
 
   useEffect(() => {
     if (queueType === 'assigned' && bucket.length > 0) {
@@ -170,8 +175,10 @@ export default function RoleTestList({ role, queueType }) {
         }
       }
       setCurrentIndex(foundIndex);
+      setSelectedAssignedTest(bucket[foundIndex]);
     } else {
       setCurrentIndex(0);
+      setSelectedAssignedTest(null);
     }
   }, [tests, queueType, role]);
 
@@ -183,14 +190,24 @@ export default function RoleTestList({ role, queueType }) {
 
   return (
     <div className="p-8 max-w-5xl mx-auto w-full space-y-4">
-      <div className="flex items-center gap-3">
-        <button
-          onClick={() => navigate('/test-management')}
-          className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center text-gray-700 hover:bg-gray-100 transition-colors"
-        >
-          <ArrowLeft size={20} />
-        </button>
-        <h1 className="text-2xl font-bold text-gray-900 tracking-tight">{TITLES[role][queueType]}</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => navigate('/test-management')}
+            className="w-10 h-10 rounded-full border border-gray-300 flex items-center justify-center text-gray-700 hover:bg-gray-100 transition-colors"
+          >
+            <ArrowLeft size={20} />
+          </button>
+          <h1 className="text-2xl font-bold text-gray-900 tracking-tight">{TITLES[role][queueType]}</h1>
+        </div>
+        
+        <input 
+          type="text" 
+          placeholder="Filter by machine name..." 
+          value={machineFilter}
+          onChange={(e) => setMachineFilter(e.target.value)}
+          className="rounded-lg border border-gray-300 px-4 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20 w-full sm:w-72"
+        />
       </div>
 
       {error && (
@@ -231,110 +248,142 @@ export default function RoleTestList({ role, queueType }) {
             </table>
           </div>
         ) : (
-          <div className="relative flex items-center justify-center max-w-5xl mx-auto px-10 min-h-[400px]" style={{ perspective: '1200px' }}>
-            {bucket.length > 1 && (
-              <button
-                onClick={() => setCurrentIndex((prev) => (prev > 0 ? prev - 1 : bucket.length - 1))}
-                className="absolute left-0 z-20 w-12 h-12 bg-white rounded-full shadow-md border border-gray-200 flex items-center justify-center text-gray-500 hover:text-[#1a6b3c] hover:bg-gray-50 transition"
-              >
-                <ArrowLeft size={24} />
-              </button>
-            )}
-
-            <div className="relative w-full h-[380px] flex items-center justify-center pointer-events-none">
-              {bucket.map((test, index) => {
-                const diff = (index - currentIndex + bucket.length) % bucket.length;
-                let position = 'hidden';
-                if (diff === 0) position = 'center';
-                else if (diff === 1 || diff === -(bucket.length - 1)) position = 'right';
-                else if (diff === bucket.length - 1 || diff === -1) position = 'left';
-
-                let transform = '';
-                let zIndex = 0;
-                let opacity = 0;
-
-                if (position === 'center') {
-                  transform = 'translateX(0) scale(1) translateZ(0)';
-                  zIndex = 10;
-                  opacity = 1;
-                } else if (position === 'left') {
-                  transform = 'translateX(-60%) scale(0.85) translateZ(-100px) rotateY(15deg)';
-                  zIndex = 5;
-                  opacity = 0.7;
-                } else if (position === 'right') {
-                  transform = 'translateX(60%) scale(0.85) translateZ(-100px) rotateY(-15deg)';
-                  zIndex = 5;
-                  opacity = 0.7;
-                }
-
-                if (position === 'hidden') return null;
-
+          <div className="flex flex-col h-[520px]">
+            <div className="flex-1 overflow-y-auto px-6 py-2 space-y-3">
+              {bucket.map((test) => {
+                const isSelected = selectedAssignedTest?.test_id === test.test_id;
                 return (
                   <div
                     key={test.test_id}
-                    className="absolute w-[340px] bg-white rounded-2xl shadow-xl border border-gray-200 p-6 flex flex-col justify-between transition-all duration-500 ease-out pointer-events-auto"
-                    style={{
-                      transform,
-                      zIndex,
-                      opacity,
-                      boxShadow: position === 'center' ? '0 25px 50px -12px rgba(0,0,0,0.15)' : '0 10px 15px -3px rgba(0,0,0,0.1)'
-                    }}
+                    onClick={() => setSelectedAssignedTest(test)}
+                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${isSelected ? 'border-[#006B33] bg-green-50 shadow-md' : 'border-gray-200 bg-white hover:border-[#006B33]/30'}`}
                   >
-                    <div>
-                      <div className="flex justify-between items-start mb-4">
-                        <StatusBadge status={test.status} />
-                        {test.scheduled_date && (
-                          <span className="flex items-center gap-1 text-xs text-gray-400 font-semibold">
-                            <Clock size={12} /> {new Date(test.scheduled_date).toLocaleDateString()}
-                          </span>
-                        )}
-                      </div>
-                      <h3 className="font-bold text-xl text-gray-900 leading-tight">
-                        {test.machine_name} {test.machine_model ? `(${test.machine_model})` : ''}
-                      </h3>
-                      <p className="text-sm text-gray-500 mt-1">{test.test_name}</p>
-
-                      {test.me_recommendation && test.me_recommendation !== 'Pending' && (
-                        <div className="mt-4 p-3 bg-gray-50 rounded-lg">
-                          <p className="text-xs text-gray-500 font-semibold mb-1">ME Recommendation</p>
-                          <p className={`text-sm font-bold ${test.me_recommendation === 'Recommended' ? 'text-[#10b981]' : 'text-red-500'}`}>
-                            {test.me_recommendation}
-                          </p>
+                    <div className="flex justify-between items-start mb-2">
+                      {test.scheduled_date ? (
+                        <div className="flex items-center gap-2 text-sm font-bold text-[#006B33]">
+                           <Clock size={16} /> 
+                           {new Date(test.scheduled_date).toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 text-sm font-bold text-gray-400">
+                           <Clock size={16} /> Not scheduled
                         </div>
                       )}
+                      <StatusBadge status={test.status} />
                     </div>
-
-                    <div className="mt-8 space-y-2">
-                      {isActionable && (
-                        <button
-                          onClick={() => openTest(test)}
-                          className="w-full bg-[#1a6b3c] text-white py-2.5 rounded-xl font-bold text-sm shadow-md hover:bg-[#124d2b] transition-all"
-                        >
-                          {role === 'TA' ? 'Start Test' : role === 'CE' ? 'Review & Decide' : 'Review Test'}
-                        </button>
-                      )}
-                      {!isActionable && (
-                        <button
-                          onClick={() => openTest(test)}
-                          className="w-full bg-white border border-gray-300 text-gray-700 py-2.5 rounded-xl font-bold text-sm hover:bg-gray-50 transition-all"
-                        >
-                          View Details
-                        </button>
-                      )}
-                    </div>
+                    <h3 className="font-bold text-lg text-gray-900 leading-tight">
+                      {test.machine_name} {test.machine_model ? `(${test.machine_model})` : ''}
+                    </h3>
+                    <p className="text-sm text-gray-600 mt-1 font-medium">{test.test_name}</p>
+                    {test.me_recommendation && test.me_recommendation !== 'Pending' && (
+                      <p className={`text-xs font-bold mt-2 ${test.me_recommendation === 'Recommended' ? 'text-[#10b981]' : 'text-red-500'}`}>
+                        ME Recommendation: {test.me_recommendation}
+                      </p>
+                    )}
                   </div>
                 );
               })}
             </div>
+            <div className="px-6 py-4 border-t border-gray-200 bg-white rounded-b-2xl">
+              {(() => {
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                const isToday = selectedAssignedTest && selectedAssignedTest.scheduled_date && new Date(selectedAssignedTest.scheduled_date).setHours(0, 0, 0, 0) === today.getTime();
+                
+                const handleRoleTestListRequest = async () => {
+                  if (!selectedAssignedTest) return;
+                  const { value: reason } = await Swal.fire({
+                    title: 'Request Early Test',
+                    html: `You are requesting to do <b>${selectedAssignedTest.test_name}</b> today.<br/><br/>Why do you need to do this instead of the scheduled date?`,
+                    input: 'textarea',
+                    inputPlaceholder: 'Type your reason here...',
+                    showCancelButton: true,
+                    confirmButtonText: 'Submit Request',
+                    confirmButtonColor: '#006B33',
+                    inputValidator: (value) => {
+                      if (!value || !value.trim()) {
+                        return 'Please provide a reason before submitting!';
+                      }
+                    }
+                  });
 
-            {bucket.length > 1 && (
-              <button
-                onClick={() => setCurrentIndex((prev) => (prev < bucket.length - 1 ? prev + 1 : 0))}
-                className="absolute right-0 z-20 w-12 h-12 bg-white rounded-full shadow-md border border-gray-200 flex items-center justify-center text-gray-500 hover:text-[#1a6b3c] hover:bg-gray-50 transition"
-              >
-                <ArrowLeft size={24} className="rotate-180" />
-              </button>
-            )}
+                  if (reason && reason.trim()) {
+                    try {
+                      await requestReschedule(selectedAssignedTest.test_id, reason);
+                      Swal.fire({
+                        icon: 'success',
+                        title: 'Request Sent',
+                        text: 'The Mechanical Engineer will review your request.',
+                        timer: 2000,
+                        showConfirmButton: false
+                      });
+                      load();
+                    } catch (e) {
+                      const errorMsg = e.response?.data?.message || e.message || 'Could not send request.';
+                      Swal.fire('Error', errorMsg, 'error');
+                    }
+                  }
+                };
+
+                if (role === 'TA' && !isToday && selectedAssignedTest) {
+                  if (selectedAssignedTest.reschedule_requested) {
+                    return (
+                      <div>
+                        <button disabled className="w-full py-3.5 rounded-xl font-bold text-base bg-amber-100 text-amber-600 border border-amber-200 cursor-not-allowed">
+                          Reschedule Request Pending
+                        </button>
+                        <p className="text-center text-xs text-gray-500 mt-2 font-semibold">
+                          Waiting for Mechanical Engineer approval.
+                        </p>
+                      </div>
+                    );
+                  }
+                  return (
+                    <div>
+                      <button
+                        onClick={handleRoleTestListRequest}
+                        className="w-full py-3.5 rounded-xl font-bold text-base bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 shadow-sm transition-all flex items-center justify-center gap-2"
+                      >
+                        Request to do Today
+                      </button>
+                      <p className="text-center text-xs text-gray-500 mt-2 font-semibold">
+                        Scheduled for: {new Date(selectedAssignedTest.scheduled_date).toLocaleDateString()}. Click above to request doing it today.
+                      </p>
+                    </div>
+                  );
+                }
+
+                let canAction = false;
+                if (role === 'TA') {
+                  canAction = isToday;
+                } else {
+                  canAction = !!selectedAssignedTest;
+                }
+
+                return (
+                  <div>
+                    <button
+                      disabled={!canAction}
+                      onClick={() => openTest(selectedAssignedTest)}
+                      className={`w-full py-3.5 rounded-xl font-bold text-base shadow-sm transition-all flex items-center justify-center gap-2 ${
+                        canAction 
+                          ? 'bg-[#1a6b3c] text-white hover:bg-[#124d2b]' 
+                          : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                      }`}
+                    >
+                      {role === 'TA' ? 'Start Test' : role === 'CE' ? 'Review & Decide' : 'Review Test'}
+                    </button>
+                    {role === 'TA' && selectedAssignedTest && (
+                       <p className="text-center text-xs text-gray-500 mt-2 font-semibold">
+                         {isToday 
+                           ? "This test is scheduled for today. You can start it now." 
+                           : "You can only start a test on its scheduled date."}
+                       </p>
+                    )}
+                  </div>
+                );
+              })()}
+            </div>
           </div>
         )}
       </div>

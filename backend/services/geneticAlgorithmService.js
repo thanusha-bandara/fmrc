@@ -1,34 +1,14 @@
 import GeneticAlgorithm from 'geneticalgorithm';
+import { getValidWorkingDays } from './ruleBasedService.js';
 
 const timeSlots = ["Full Day"];
 
 const createRandomSchedule = (validTests, fields, tas, holidays = [], allSeasons = []) => {
     let schedule = {};
     
-    // Generate up to 365 days to ensure seasons far in the future can be reached
+    // Generate up to 365 days using rule-based working days generator (skips weekends and holidays)
     const requiredDays = Math.max(365, validTests.length * 2);
-    
-    let startDate = new Date();
-    const days = [];
-    
-    let i = 0;
-    while (days.length < requiredDays) {
-        let nextDate = new Date(startDate);
-        nextDate.setDate(startDate.getDate() + i + 1);
-        
-        let yyyy = nextDate.getFullYear();
-        let mm = String(nextDate.getMonth() + 1).padStart(2, '0');
-        let dd = String(nextDate.getDate()).padStart(2, '0');
-        
-        let dateString = `${yyyy}-${mm}-${dd}`;
-        let dayOfWeek = nextDate.getDay();
-        
-        // Skip Saturdays, Sundays, and holidays 
-        if (dayOfWeek !== 0 && dayOfWeek !== 6 && !holidays.includes(dateString)) {
-            days.push({ dateString, dateObj: nextDate });
-        }
-        i++;
-    }
+    const days = getValidWorkingDays(requiredDays, holidays);
 
     const counters = { any: 0 };
     validTests.forEach((test) => {
@@ -187,19 +167,8 @@ export const runGA = (validTests, rainyDates = [], fields = [], tas = [], holida
 
     // Generate full days array once for mutation and crossover to know the universe of days
     const requiredDays = Math.max(365, validTests.length * 2);
-    let startDate = new Date();
-    const globalDays = [];
-    let dIdx = 0;
-    while (globalDays.length < requiredDays) {
-        let nextDate = new Date(startDate);
-        nextDate.setDate(startDate.getDate() + dIdx + 1);
-        let dateString = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}-${String(nextDate.getDate()).padStart(2, '0')}`;
-        let dayOfWeek = nextDate.getDay();
-        if (dayOfWeek !== 0 && dayOfWeek !== 6 && !holidays.includes(dateString)) {
-            globalDays.push(dateString);
-        }
-        dIdx++;
-    }
+    const workingDaysObj = getValidWorkingDays(requiredDays, holidays);
+    const globalDays = workingDaysObj.map(d => d.dateString);
 
     let initialPopulation = [];
     for (let i = 0; i < 50; i++) {

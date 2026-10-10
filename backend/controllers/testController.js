@@ -1,3 +1,4 @@
+import db from '../config/db.js';
 import {
     createTestRecord,
     getTestRecordById,
@@ -204,6 +205,43 @@ export const removeTest = async (req, res) => {
         res.status(200).json({ success: true, message: "Test request deleted." });
     } catch (error) {
         res.status(500).json({ success: false, message: "Error deleting test.", error: error.message });
+    }
+};
+
+
+export const requestReschedule = async (req, res) => {
+    try {
+        const { reason } = req.body;
+        const testId = req.params.id;
+        const existing = await getTestRecordById(testId);
+        if (!existing) return res.status(404).json({ success: false, message: 'Test not found.' });
+
+        const isAssigned = (existing.assigned_ta_id && Number(existing.assigned_ta_id) === Number(req.user.user_id)) ||
+                           (existing.technical_assistant_id && Number(existing.technical_assistant_id) === Number(req.user.user_id));
+
+        if (req.user.role !== 'Technical_Assistant' || !isAssigned) {
+            return res.status(403).json({ success: false, message: 'You are not authorized to reschedule this test.' });
+        }
+        await db.query('UPDATE Test_Records SET reschedule_requested = 1, reschedule_reason = ? WHERE test_id = ?', [reason, testId]);
+        res.status(200).json({ success: true, message: 'Reschedule requested successfully.' });
+    } catch (error) {
+        console.error('Error requesting reschedule:', error);
+        res.status(500).json({ success: false, message: 'Error requesting reschedule.', error: error.message });
+    }
+};
+
+export const approveReschedule = async (req, res) => {
+    try {
+        const testId = req.params.id;
+        const existing = await getTestRecordById(testId);
+        if (!existing) return res.status(404).json({ success: false, message: 'Test not found.' });
+        // Set date to today and lock
+        const today = new Date().toISOString().split('T')[0];
+        await db.query('UPDATE Schedules SET scheduled_date = ?, status = ? WHERE test_id = ?', [today, 'Locked', testId]);
+        await db.query('UPDATE Test_Records SET reschedule_requested = 0, reschedule_reason = NULL WHERE test_id = ?', [testId]);
+        res.status(200).json({ success: true, message: 'Reschedule approved.' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Error approving reschedule.', error: error.message });
     }
 };
 

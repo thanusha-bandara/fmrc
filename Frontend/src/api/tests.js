@@ -26,3 +26,10 @@ export const getTestEstimate = (id) =>
 
 export const getStandaloneEstimate = (testName, isFieldTest = true) =>
     apiClient.get("/estimate", { params: { testName, isFieldTest } }).then((r) => r.data.estimate);
+
+export const requestReschedule = (id, reason) =>
+    apiClient.post(`/tests/${id}/request-reschedule`, { reason }).then((r) => r.data);
+
+export const approveReschedule = (id) =>
+    apiClient.post(`/tests/${id}/approve-reschedule`).then((r) => r.data);
+
