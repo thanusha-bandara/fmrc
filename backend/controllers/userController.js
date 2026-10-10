@@ -18,11 +18,11 @@ import {
 
 const SALT_ROUNDS = 10;
 
-// Requires exactly 8 characters, with one uppercase letter, one lowercase letter, one number,
+// Requires at least 8 characters, with one uppercase letter, one lowercase letter, one number,
 // and one special character.
-const STRONG_PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8}$/;
+const STRONG_PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
 const PASSWORD_REQUIREMENTS_MESSAGE =
-    "Password must be exactly 8 characters and include an uppercase letter, a lowercase letter, a number, and a special character.";
+    "Password must be at least 8 characters and include an uppercase letter, a lowercase letter, a number, and a special character.";
 
 const signToken = (user) => {
     return jwt.sign(
