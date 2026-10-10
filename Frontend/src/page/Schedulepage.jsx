@@ -5,15 +5,18 @@ import moment from 'moment';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { RefreshCw } from 'lucide-react';
 import { getSchedules, generateSchedule } from '../api/schedule';
+import { listHolidays, listWeatherLogs } from '../api/resources';
 import { getErrorMessage } from '../api/client';
 
 const localizer = momentLocalizer(moment);
 const role = () => localStorage.getItem('userRole') || 'TA';
 
 const SchedulePage = () => {
-  const [currentView, setCurrentView] = useState('week');
+  const [currentView, setCurrentView] = useState('month');
   const [currentDate, setCurrentDate] = useState(new Date());
   const [events, setEvents] = useState([]);
+  const [holidays, setHolidays] = useState({});
+  const [weather, setWeather] = useState({});
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState('');
@@ -22,8 +25,8 @@ const SchedulePage = () => {
 
   const load = () => {
     setLoading(true);
-    getSchedules()
-      .then((schedules) => {
+    Promise.all([getSchedules(), listHolidays(), listWeatherLogs()])
+      .then(([schedules, holidayData, weatherData]) => {
         setEvents(schedules.map((s) => {
           const date = new Date(s.scheduled_date);
           const start = new Date(date); start.setHours(8, 0, 0);
@@ -34,6 +37,27 @@ const SchedulePage = () => {
             resource: s
           };
         }));
+
+        const hMap = {};
+        holidayData.forEach(h => {
+          // ensure correct date parsing
+          const [y, m, d] = (h.date || '').split('-');
+          if(y && m && d) {
+             const dt = new Date(y, m - 1, d);
+             hMap[dt.toDateString()] = h;
+          }
+        });
+        setHolidays(hMap);
+
+        const wMap = {};
+        weatherData.forEach(w => {
+          const [y, m, d] = (w.date || '').split('-');
+          if(y && m && d) {
+             const dt = new Date(y, m - 1, d);
+             wMap[dt.toDateString()] = w.is_rainy;
+          }
+        });
+        setWeather(wMap);
       })
       .catch((err) => setError(getErrorMessage(err, 'Could not load the schedule.')))
       .finally(() => setLoading(false));
@@ -64,6 +88,57 @@ const SchedulePage = () => {
   const maxTime = new Date();
   maxTime.setHours(18, 0, 0);
 
+  const CustomDateHeader = ({ date, label }) => {
+    const dateStr = date.toDateString();
+    const isRainy = weather[dateStr] === 1 || weather[dateStr] === true;
+    const isHoliday = holidays[dateStr];
+
+    let holidayTitle = '';
+    if (isHoliday) {
+      holidayTitle = isHoliday.holiday_type === 'Government' 
+        ? `Gov Holiday: ${isHoliday.reason}` 
+        : `FMRC Holiday: ${isHoliday.reason}`;
+    }
+
+    return (
+      <div className="relative w-full p-1 text-right" title={holidayTitle} style={{minHeight: '28px'}}>
+        {isRainy && (
+          <span 
+            title="Rainy" 
+            className="absolute top-1 left-1 text-xs cursor-help leading-none opacity-80"
+          >
+            🌧️
+          </span>
+        )}
+        <span className="text-sm font-semibold text-gray-700 mr-1">{label}</span>
+      </div>
+    );
+  };
+
+  const customDayPropGetter = (date) => {
+    const dateStr = date.toDateString();
+    const isHoliday = holidays[dateStr];
+    
+    if (isHoliday) {
+      if (isHoliday.holiday_type === 'Government') {
+        return {
+          style: {
+            backgroundColor: '#fef2f2',
+            border: '2px solid #ef4444',
+          }
+        };
+      } else {
+        return {
+          style: {
+            backgroundColor: '#eff6ff',
+            border: '2px solid #3b82f6',
+          }
+        };
+      }
+    }
+    return {};
+  };
+
   return (
     <div className="p-6">
       <div className="bg-white p-6 rounded-xl shadow-sm border border-gray-200">
@@ -85,7 +160,7 @@ const SchedulePage = () => {
           <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700 font-medium">{error}</div>
         )}
 
-        <div style={{ height: '550px' }}>
+        <div style={{ height: '700px' }}>
           {loading ? (
             <div className="h-full flex items-center justify-center text-gray-400">Loading schedule...</div>
           ) : (
@@ -105,6 +180,12 @@ const SchedulePage = () => {
               max={maxTime}
               views={['month', 'week', 'day']}
               onSelectEvent={(event) => setSelectedEvent(event.resource)}
+              dayPropGetter={customDayPropGetter}
+              components={{
+                month: {
+                  dateHeader: CustomDateHeader
+                }
+              }}
               eventPropGetter={(event) => {
                 // Determine color based on field vs lab test
                 let backgroundColor = event.resource.is_field_test ? '#006B33' : '#F59E0B'; // Green for Field, Yellow/Amber for Lab
