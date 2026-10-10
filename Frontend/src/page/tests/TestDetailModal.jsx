@@ -61,7 +61,7 @@ function KeyValueEditor({ pairs, setPairs, readOnly }) {
 // modal works the same whether it was opened from a role+queue list (Assigned/Pending/
 // Completed) or straight off the Machinery page's test list.
 function getMode(test, role, userId) {
-  if (role === 'TA' && test.status === 'Draft' && test.assigned_ta_id === userId) return 'entry';
+  if ((role === 'TA' || role === 'AI') && test.status === 'Draft' && test.assigned_ta_id === userId) return 'entry';
   if (role === 'ME' && test.status === 'Submitted') return 'review';
   // Tractor-catalog tests skip the per-test CE decision -- CE approves the compiled
   // final report as a whole instead, from the separate Reports for Approval screen.

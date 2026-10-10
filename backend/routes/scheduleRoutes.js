@@ -7,6 +7,6 @@ const router = express.Router();
 router.use(authenticate);
 
 router.get('/', getSchedules);
-router.post('/generate', authorize('Admin', 'Technical_Assistant'), generateSchedule);
+router.post('/generate', authorize('Admin'), generateSchedule);
 
 export default router;

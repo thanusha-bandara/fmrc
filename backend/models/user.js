@@ -1,7 +1,7 @@
 import db from '../config/db.js';
 
 export const getTechnicalAssistants = async () => {
-    const [tas] = await db.query(`SELECT user_id, full_name FROM Users WHERE role = 'Technical_Assistant' AND is_active = TRUE`);
+    const [tas] = await db.query(`SELECT user_id, full_name FROM Users WHERE role IN ('Technical_Assistant', 'Agriculture_Instructor') AND is_active = TRUE`);
     return tas;
 };
 
@@ -98,6 +98,10 @@ export const deleteUser = async (userId) => {
 };
 
 export const getUsersByRole = async (role) => {
+    if (role === 'Technical_Assistant') {
+        const [rows] = await db.query(`SELECT ${PUBLIC_FIELDS} FROM Users WHERE role IN ('Technical_Assistant', 'Agriculture_Instructor') AND is_active = TRUE`);
+        return rows;
+    }
     const [rows] = await db.query(`SELECT ${PUBLIC_FIELDS} FROM Users WHERE role = ? AND is_active = TRUE`, [role]);
     return rows;
 };

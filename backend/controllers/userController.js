@@ -139,7 +139,7 @@ export const setUserPassword = async (req, res) => {
 export const registerUser = async (req, res) => {
     try {
         const { full_name, username, email, password, phone, role } = req.body;
-        const allowedRoles = ["Admin", "Technical_Assistant", "Mechanical_Engineer", "Chief_Engineer"];
+        const allowedRoles = ["Admin", "Technical_Assistant", "Agriculture_Instructor", "Mechanical_Engineer", "Chief_Engineer"];
 
         if (!full_name || !username || !email || !password || !role) {
             return res.status(400).json({ success: false, message: "full_name, username, email, password and role are required." });

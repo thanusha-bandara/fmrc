@@ -178,6 +178,7 @@ export default function AdminUserManagement() {
                 <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}
                   className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20">
                   <option value="Technical_Assistant">Technical Assistant</option>
+                  <option value="Agriculture_Instructor">Agriculture Instructor</option>
                   <option value="Mechanical_Engineer">Mechanical Engineer</option>
                   <option value="Chief_Engineer">Chief Engineer</option>
                   <option value="Admin">Admin</option>

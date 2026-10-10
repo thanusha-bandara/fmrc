@@ -127,14 +127,14 @@ export default function MainLayout() {
 
 
   const allNavItems = [
-    { id: 'dashboard', path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['TA', 'ME', 'CE', 'ADMIN'] },
-    { id: 'machinery', path: '/machinery', label: 'Machinery', icon: Wrench, roles: ['TA', 'ME', 'CE', 'ADMIN'] }, 
-    { id: 'test-management', path: '/test-management', label: 'Test Management', icon: ClipboardList, roles: ['TA', 'ME', 'CE'] },
+    { id: 'dashboard', path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['TA', 'AI', 'ME', 'CE', 'ADMIN'] },
+    { id: 'machinery', path: '/machinery', label: 'Machinery', icon: Wrench, roles: ['TA', 'AI', 'ME', 'CE', 'ADMIN'] }, 
+    { id: 'test-management', path: '/test-management', label: 'Test Management', icon: ClipboardList, roles: ['TA', 'AI', 'ME', 'CE'] },
     { id: 'finalize-reports', path: '/finalize-reports', label: 'Finalize Reports', icon: FileCheck2, roles: ['ME'] },
     { id: 'reports-for-approval', path: '/reports-for-approval', label: 'Reports for Approval', icon: FileCheck2, roles: ['CE'] },
     { id: 'resource-management', path: '/resource-management', label: 'Resource Management', icon: SlidersHorizontal, roles: ['TA', 'ME', 'CE', 'ADMIN'] },
     { id: 'user-management', path: '/user-management', label: 'User Management', icon: Users, roles: ['ADMIN'] }, 
-    { id: 'schedule', path: '/schedule', label: 'Schedule', icon: CalendarIcon, roles: ['TA', 'ME', 'CE', 'ADMIN'] },
+    { id: 'schedule', path: '/schedule', label: 'Schedule', icon: CalendarIcon, roles: ['TA', 'AI', 'ME', 'CE', 'ADMIN'] },
   ];
 
   

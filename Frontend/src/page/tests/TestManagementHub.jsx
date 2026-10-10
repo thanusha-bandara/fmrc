@@ -15,7 +15,7 @@ function hasData(formData) {
 }
 
 function bucketize(tests, role, queueType, userId) {
-  if (role === 'TA') {
+  if ((role === 'TA' || role === 'AI')) {
     const mine = tests.filter((t) => t.assigned_ta_id === userId);
     if (queueType === 'assigned') return mine.filter((t) => t.status === 'Draft' && !hasData(t.form_data));
     if (queueType === 'pending') return mine.filter((t) => t.status === 'Draft' && hasData(t.form_data));
@@ -39,11 +39,12 @@ function bucketize(tests, role, queueType, userId) {
 
 const CARD_LABELS = {
   TA: { assigned: 'Assigned Tests', pending: 'Pending Tests', completed: 'Completed Tests' },
+  AI: { assigned: 'Assigned Tests', pending: 'Pending Tests', completed: 'Completed Tests' },
   ME: { assigned: 'Assigned Tests', pending: 'Pending Tests', completed: 'Completed Tests' },
   CE: { assigned: 'Assigned Tests', pending: 'Pending Tests', completed: 'Completed Tests' }
 };
 
-const ACTION_LABEL = { TA: 'Start Test', ME: 'Review Test', CE: 'Review & Decide' };
+const ACTION_LABEL = { TA: 'Start Test', AI: 'Start Test', ME: 'Review Test', CE: 'Review & Decide' };
 
 // Shared test item row for both assigned card views
 function AssignedTestItem({ t, isSelected, onClick, today }) {
@@ -120,7 +121,7 @@ export default function TestManagementHub({ role }) {
 
   const isToday = selectedTest && selectedTest.scheduled_date &&
     new Date(selectedTest.scheduled_date).setHours(0,0,0,0) === today.getTime();
-  const canStart = role !== 'TA' ? !!selectedTest : isToday;
+  const canStart = (role !== 'TA' && role !== 'AI') ? !!selectedTest : isToday;
 
   // Assigned list body (reused in card + modal)
   const AssignedListBody = ({ maxH }) => (
@@ -224,7 +225,7 @@ export default function TestManagementHub({ role }) {
       );
     }
 
-    if (role === 'TA' && !isToday) {
+    if ((role === 'TA' || role === 'AI') && !isToday) {
       if (selectedTest.reschedule_requested) {
          return (
            <div className="pt-3 border-t border-gray-100">

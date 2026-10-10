@@ -7,6 +7,7 @@ import PasswordResetRequests from '../component/PasswordResetRequests';
 const ROLE_TITLES = {
   Admin: 'System Administrator',
   Technical_Assistant: 'Technical Assistant',
+  Agriculture_Instructor: 'Agriculture Instructor',
   Mechanical_Engineer: 'Mechanical Engineer',
   Chief_Engineer: 'Chief Engineer'
 };

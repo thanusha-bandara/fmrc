@@ -21,7 +21,7 @@ function hasData(formData) {
 
 // Splits the full test list into the bucket relevant to this role + queue type.
 function bucketize(tests, role, queueType, userId) {
-  if (role === 'TA') {
+  if ((role === 'TA' || role === 'AI')) {
     const mine = tests.filter((t) => t.assigned_ta_id === userId);
     if (queueType === 'assigned') return mine.filter((t) => t.status === 'Draft' && !hasData(t.form_data));
     if (queueType === 'pending') return mine.filter((t) => t.status === 'Draft' && hasData(t.form_data));
@@ -331,7 +331,7 @@ export default function RoleTestList({ role, queueType }) {
                   }
                 };
 
-                if (role === 'TA' && !isToday && selectedAssignedTest) {
+                if ((role === 'TA' || role === 'AI') && !isToday && selectedAssignedTest) {
                   if (selectedAssignedTest.reschedule_requested) {
                     return (
                       <div>
@@ -360,7 +360,7 @@ export default function RoleTestList({ role, queueType }) {
                 }
 
                 let canAction = false;
-                if (role === 'TA') {
+                if ((role === 'TA' || role === 'AI')) {
                   canAction = isToday;
                 } else {
                   canAction = !!selectedAssignedTest;
@@ -377,9 +377,9 @@ export default function RoleTestList({ role, queueType }) {
                           : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                       }`}
                     >
-                      {role === 'TA' ? 'Start Test' : role === 'CE' ? 'Review & Decide' : 'Review Test'}
+                      {(role === 'TA' || role === 'AI') ? 'Start Test' : role === 'CE' ? 'Review & Decide' : 'Review Test'}
                     </button>
-                    {role === 'TA' && selectedAssignedTest && (
+                    {(role === 'TA' || role === 'AI') && selectedAssignedTest && (
                        <p className="text-center text-xs text-gray-500 mt-2 font-semibold">
                          {isToday 
                            ? "This test is scheduled for today. You can start it now." 

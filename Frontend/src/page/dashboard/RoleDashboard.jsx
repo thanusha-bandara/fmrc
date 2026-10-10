@@ -9,7 +9,7 @@ import { getSchedules } from '../../api/schedule';
 const currentUserId = () => Number(localStorage.getItem('userId'));
 
 const myTestsFor = (tests, role, userId) => {
-  if (role === 'TA') return tests.filter((t) => t.assigned_ta_id === userId);
+  if ((role === 'TA' || role === 'AI')) return tests.filter((t) => t.assigned_ta_id === userId);
   if (role === 'ME') return tests.filter((t) => t.mechanical_engineer_id === userId || t.status === 'Submitted');
   return tests.filter((t) => t.chief_engineer_id === userId || t.status === 'Reviewed');
 };
@@ -45,8 +45,8 @@ export default function RoleDashboard({ role }) {
   const cells = [...Array(firstDay).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => i + 1)];
 
   const overviewLines = summary ? [
-    role === 'TA' && { label: 'My Assigned Tests', value: summary.myAssignedTests ?? 0 },
-    role === 'TA' && { label: 'My Draft Entries', value: summary.myDraftTests ?? 0 },
+    (role === 'TA' || role === 'AI') && { label: 'My Assigned Tests', value: summary.myAssignedTests ?? 0 },
+    (role === 'TA' || role === 'AI') && { label: 'My Draft Entries', value: summary.myDraftTests ?? 0 },
     role === 'ME' && { label: 'Awaiting My Review', value: summary.pendingReview ?? 0 },
     role === 'CE' && { label: 'Awaiting My Approval', value: summary.pendingApproval ?? 0 },
     { label: 'Upcoming Schedules', value: summary.upcomingSchedules ?? 0 },

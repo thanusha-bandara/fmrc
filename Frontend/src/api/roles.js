@@ -1,8 +1,7 @@
-// The backend stores full role names (RBAC enum); the frontend UI/routing has always
-// used short codes. This is the single place that maps between the two.
 export const BACKEND_TO_SHORT = {
     Admin: "ADMIN",
     Technical_Assistant: "TA",
+    Agriculture_Instructor: "AI",
     Mechanical_Engineer: "ME",
     Chief_Engineer: "CE"
 };
@@ -10,6 +9,7 @@ export const BACKEND_TO_SHORT = {
 export const SHORT_TO_BACKEND = {
     ADMIN: "Admin",
     TA: "Technical_Assistant",
+    AI: "Agriculture_Instructor",
     ME: "Mechanical_Engineer",
     CE: "Chief_Engineer"
 };
