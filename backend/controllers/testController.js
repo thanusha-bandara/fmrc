@@ -9,6 +9,7 @@ import {
     decideTestRecord,
     deleteTestRecord
 } from "../models/testRecord.js";
+import { getSchemaById } from "../models/testFormSchema.js";
 import { generateMachineReport } from "../services/reportService.js";
 
 // Admin / Mechanical Engineer: register a new test request against a machine.
@@ -98,7 +99,74 @@ export const submitTest = async (req, res) => {
             return res.status(409).json({ success: false, message: `Test is already ${existing.status}.` });
         }
         if (!existing.form_data) {
-            return res.status(400).json({ success: false, message: "Cannot submit a test with no recorded data." });
+            return res.status(400).json({ success: false, message: "Cannot submit a test with no recorded data. Cannot submit without filling." });
+        }
+
+        const formData = typeof existing.form_data === 'string' ? JSON.parse(existing.form_data) : existing.form_data;
+
+        // Validate Test Date & Start Time
+        const testDate = formData.test_date || formData['site_soil.test_date'];
+        const startTime = formData.start_time || formData['operational_fuel_test.start_time'] || formData['trip_details.start_time'];
+        if (!testDate || !String(testDate).trim() || !startTime || !String(startTime).trim()) {
+            return res.status(400).json({
+                success: false,
+                message: "Test Date and Start Time are mandatory before submitting. Cannot submit without filling."
+            });
+        }
+
+        // Validate all non-auto blanks
+        if (existing.schema_id) {
+            const schema = await getSchemaById(existing.schema_id);
+            if (schema && Array.isArray(schema.sections)) {
+                for (const section of schema.sections) {
+                    if (section.type === 'fields' && Array.isArray(section.fields)) {
+                        for (const f of section.fields) {
+                            if (!f.auto) {
+                                const key = `${section.key}.${f.key}`;
+                                const val = formData[key];
+                                if (val === undefined || val === null || String(val).trim() === '') {
+                                    return res.status(400).json({
+                                        success: false,
+                                        message: `Field "${f.label || f.key}" is required. Cannot submit without filling.`
+                                    });
+                                }
+                            }
+                        }
+                    } else if (section.type === 'table' && Array.isArray(section.rows) && Array.isArray(section.columns)) {
+                        for (const r of section.rows) {
+                            for (const c of section.columns) {
+                                if (!r.auto && !c.auto) {
+                                    const key = `${section.key}.${r.key}.${c.key}`;
+                                    const val = formData[key];
+                                    if (val === undefined || val === null || String(val).trim() === '') {
+                                        return res.status(400).json({
+                                            success: false,
+                                            message: `Table cell "${r.label} - ${c.label}" is required. Cannot submit without filling.`
+                                        });
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            const nonMetaKeys = Object.keys(formData).filter((k) => k !== 'test_date' && k !== 'start_time');
+            if (nonMetaKeys.length === 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: "At least one test parameter must be recorded. Cannot submit without filling."
+                });
+            }
+            for (const k of nonMetaKeys) {
+                const val = formData[k];
+                if (val === undefined || val === null || String(val).trim() === '') {
+                    return res.status(400).json({
+                        success: false,
+                        message: `Parameter "${k}" cannot be blank. Cannot submit without filling.`
+                    });
+                }
+            }
         }
 
         const test = await submitTestRecord(req.params.id);

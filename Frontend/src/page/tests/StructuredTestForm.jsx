@@ -2,9 +2,9 @@ import React from 'react';
 import { computeDerivedFields } from './testFormCalculations';
 
 const inputClass = "rounded-md border border-gray-300 px-2.5 py-1.5 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20 disabled:bg-gray-50";
-const cellInputClass = "w-20 rounded-md border border-gray-300 px-1.5 py-1 text-xs outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20 disabled:bg-gray-50";
+const cellInputClass = "w-24 rounded-md border border-gray-300 px-1.5 py-1 text-xs outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20 disabled:bg-gray-50";
 
-function FieldsSection({ section, formData, onFieldChange, readOnly, reviewMode, reviewProgress = {}, onToggleReview }) {
+function FieldsSection({ section, formData, onFieldChange, readOnly, reviewMode, reviewProgress = {}, onToggleReview, errors = {}, locked = false }) {
   return (
     <div className="space-y-2">
       <p className="text-xs font-bold text-gray-500 uppercase tracking-wide">{section.label}</p>
@@ -12,12 +12,18 @@ function FieldsSection({ section, formData, onFieldChange, readOnly, reviewMode,
         {section.fields.map((field) => {
           const key = `${section.key}.${field.key}`;
           const value = formData[key] ?? '';
-          const disabled = readOnly || field.auto;
+          const disabled = readOnly || field.auto || locked;
+          const hasError = !field.auto && !!errors[key];
+
+          const currentClass = hasError
+            ? "rounded-md border-2 border-red-500 bg-red-50 px-2.5 py-1.5 text-sm outline-none focus:border-red-600 focus:ring-2 focus:ring-red-200 text-red-900"
+            : `${inputClass} ${locked ? 'cursor-not-allowed bg-gray-100 text-gray-400 border-gray-200' : ''}`;
+
           return (
-            <div key={key} className="flex flex-col gap-1 relative">
+            <div key={key} id={`field-${key.replace(/\./g, '-')}`} className="flex flex-col gap-1 relative">
               <div className="flex justify-between items-center">
-                <label className="text-xs text-gray-600">
-                  {field.label}{field.auto ? ' (auto)' : ''}
+                <label className={`text-xs ${hasError ? 'text-red-600 font-bold' : 'text-gray-600'}`}>
+                  {field.label}{field.auto ? ' (auto)' : ''} {!field.auto && !readOnly && <span className="text-red-500">*</span>}
                 </label>
                 {reviewMode && (
                   <div className="flex items-center gap-1 cursor-pointer select-none" onClick={() => onToggleReview(key)}>
@@ -32,16 +38,22 @@ function FieldsSection({ section, formData, onFieldChange, readOnly, reviewMode,
                   value={value}
                   onChange={(e) => onFieldChange(key, e.target.value)}
                   rows={2}
-                  className={`${inputClass} resize-none`}
+                  placeholder={locked ? 'Locked until date & time entered' : (field.defaultValue || '')}
+                  className={`${currentClass} resize-none`}
                 />
               ) : (
                 <input
                   disabled={disabled}
                   value={value}
                   onChange={(e) => onFieldChange(key, e.target.value)}
-                  placeholder={field.defaultValue || ''}
-                  className={inputClass}
+                  placeholder={locked ? 'Locked until date & time entered' : (field.defaultValue || '')}
+                  className={currentClass}
                 />
+              )}
+              {hasError && (
+                <p className="text-[11px] font-semibold text-red-600 flex items-center gap-1 mt-0.5">
+                  <span>⚠️</span> Cannot submit without filling
+                </p>
               )}
             </div>
           );
@@ -51,7 +63,7 @@ function FieldsSection({ section, formData, onFieldChange, readOnly, reviewMode,
   );
 }
 
-function TableSection({ section, formData, onFieldChange, readOnly, reviewMode, reviewProgress = {}, onToggleReview }) {
+function TableSection({ section, formData, onFieldChange, readOnly, reviewMode, reviewProgress = {}, onToggleReview, errors = {}, locked = false }) {
   const hasAuto = section.rows.some((r) => r.auto) || section.columns.some((c) => c.auto);
   return (
     <div className="space-y-2">
@@ -82,15 +94,27 @@ function TableSection({ section, formData, onFieldChange, readOnly, reviewMode, 
                 {section.columns.map((col) => {
                   const key = `${section.key}.${row.key}.${col.key}`;
                   const value = formData[key] ?? '';
-                  const disabled = readOnly || row.auto || col.auto;
+                  const disabled = readOnly || row.auto || col.auto || locked;
+                  const hasError = !row.auto && !col.auto && !!errors[key];
+
+                  const currentCellClass = hasError
+                    ? "w-24 rounded-md border-2 border-red-500 bg-red-50 px-1.5 py-1 text-xs outline-none focus:border-red-600 focus:ring-2 focus:ring-red-200 text-red-900"
+                    : `${cellInputClass} ${locked ? 'cursor-not-allowed bg-gray-100 text-gray-400 border-gray-200' : ''}`;
+
                   return (
-                    <td key={col.key} className="px-1 py-1">
+                    <td key={col.key} id={`field-${key.replace(/\./g, '-')}`} className="px-1 py-1 align-top">
                       <input
                         disabled={disabled}
                         value={value}
                         onChange={(e) => onFieldChange(key, e.target.value)}
-                        className={cellInputClass}
+                        placeholder={locked ? 'Locked' : ''}
+                        className={currentCellClass}
                       />
+                      {hasError && (
+                        <span className="text-[9px] font-semibold text-red-600 block mt-0.5 leading-tight whitespace-nowrap">
+                          Cannot submit without filling
+                        </span>
+                      )}
                     </td>
                   );
                 })}
@@ -109,10 +133,22 @@ function TableSection({ section, formData, onFieldChange, readOnly, reviewMode, 
 // FMRC's real paper data sheets. `formData` is the flat, composite-dotted-key object stored
 // in Test_Records.form_data; auto-calculated fields are recomputed on every change via
 // computeDerivedFields (keyed by the schema's formula_set) and are always read-only.
-export default function StructuredTestForm({ schema, formData, onChange, readOnly, reviewMode, reviewProgress, onToggleReview }) {
+export default function StructuredTestForm({
+  schema,
+  formData,
+  onChange,
+  readOnly,
+  reviewMode,
+  reviewProgress,
+  onToggleReview,
+  errors = {},
+  locked = false,
+  onClearError
+}) {
   if (!schema) return null;
 
   const handleFieldChange = (key, value) => {
+    if (onClearError) onClearError(key);
     const draft = { ...formData, [key]: value };
     onChange(computeDerivedFields(schema.formula_set, draft));
   };
@@ -121,9 +157,31 @@ export default function StructuredTestForm({ schema, formData, onChange, readOnl
     <div className="space-y-5">
       {schema.sections.map((section) =>
         section.type === 'table' ? (
-          <TableSection key={section.key} section={section} formData={formData} onFieldChange={handleFieldChange} readOnly={readOnly} reviewMode={reviewMode} reviewProgress={reviewProgress} onToggleReview={onToggleReview} />
+          <TableSection
+            key={section.key}
+            section={section}
+            formData={formData}
+            onFieldChange={handleFieldChange}
+            readOnly={readOnly}
+            reviewMode={reviewMode}
+            reviewProgress={reviewProgress}
+            onToggleReview={onToggleReview}
+            errors={errors}
+            locked={locked}
+          />
         ) : (
-          <FieldsSection key={section.key} section={section} formData={formData} onFieldChange={handleFieldChange} readOnly={readOnly} reviewMode={reviewMode} reviewProgress={reviewProgress} onToggleReview={onToggleReview} />
+          <FieldsSection
+            key={section.key}
+            section={section}
+            formData={formData}
+            onFieldChange={handleFieldChange}
+            readOnly={readOnly}
+            reviewMode={reviewMode}
+            reviewProgress={reviewProgress}
+            onToggleReview={onToggleReview}
+            errors={errors}
+            locked={locked}
+          />
         )
       )}
     </div>
