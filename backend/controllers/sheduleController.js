@@ -10,13 +10,29 @@ import db from '../config/db.js';
 export const generateSchedule = async (req, res) => {
     try {
         const [tests] = await db.query(`
-            SELECT tr.test_id, tr.test_name, tr.is_field_test, tr.requires_water, tr.required_season, tr.technical_assistant_id, m.registration_date as registrationDate, m.machine_name, MAX(s.schedule_id) as schedule_id
-            FROM Test_Records tr JOIN Machinery m ON tr.machine_id = m.machine_id LEFT JOIN Schedules s ON tr.test_id = s.test_id WHERE s.test_id IS NULL OR s.status IN ('Scheduled', 'Rescheduled') GROUP BY tr.test_id
+            SELECT tr.test_id, tr.test_name, tr.is_field_test, tr.requires_water, tr.required_season, tr.technical_assistant_id, m.registration_date as registrationDate, m.machine_name, m.responsible_ta_id as machine_responsible_ta, m.required_labours, MAX(s.schedule_id) as schedule_id
+            FROM Test_Records tr JOIN Machinery m ON tr.machine_id = m.machine_id LEFT JOIN Schedules s ON tr.test_id = s.test_id WHERE (s.test_id IS NULL OR s.status IN ('Scheduled', 'Rescheduled', 'Cancelled')) AND tr.status = 'Draft' AND COALESCE(m.is_on_hold, 0) = 0 GROUP BY tr.test_id
         `);
 
         if (tests.length === 0) return res.status(200).json({ success: true, message: "No tests to schedule.", schedule: [] });
 
-        const pendingTests = tests.map(t => ({ test_id: t.test_id, test_name: t.test_name, registrationDate: t.registrationDate, machineName: t.machine_name, isFieldTest: Boolean(t.is_field_test), requiredSeason: t.required_season || "Any", requiresWater: Boolean(t.requires_water), requiredTA: t.technical_assistant_id || null }));
+        const pendingTests = tests.map(t => {
+            let requiredLabours = [];
+            if (t.required_labours) {
+                try { requiredLabours = typeof t.required_labours === 'string' ? JSON.parse(t.required_labours) : t.required_labours; } catch(e) {}
+            }
+            return {
+                test_id: t.test_id,
+                test_name: t.test_name,
+                registrationDate: t.registrationDate,
+                machineName: t.machine_name,
+                isFieldTest: Boolean(t.is_field_test),
+                requiredSeason: t.required_season || "Any",
+                requiresWater: Boolean(t.requires_water),
+                requiredTA: t.technical_assistant_id || t.machine_responsible_ta || null,
+                requiredLabours
+            };
+        });
         const allSeasons = await getFarmSeasons();
         const filteredTests = filterAndSortTests(pendingTests, allSeasons);
 

@@ -76,6 +76,9 @@ export const saveTestData = async (req, res) => {
         if (!existing) {
             return res.status(404).json({ success: false, message: "Test record not found." });
         }
+        if (existing.machine_on_hold) {
+            return res.status(409).json({ success: false, message: "This machine is currently On Hold. Tests cannot be edited until it is unheld." });
+        }
         if (existing.status !== "Draft") {
             return res.status(409).json({ success: false, message: `Cannot edit data once the test is ${existing.status}.` });
         }
@@ -93,6 +96,9 @@ export const submitTest = async (req, res) => {
         const existing = await getTestRecordById(req.params.id);
         if (!existing) {
             return res.status(404).json({ success: false, message: "Test record not found." });
+        }
+        if (existing.machine_on_hold) {
+            return res.status(409).json({ success: false, message: "This machine is currently On Hold. Tests cannot be submitted until it is unheld." });
         }
         if (existing.status !== "Draft") {
             return res.status(409).json({ success: false, message: `Test is already ${existing.status}.` });
@@ -122,6 +128,9 @@ export const reviewTest = async (req, res) => {
         if (!existing) {
             return res.status(404).json({ success: false, message: "Test record not found." });
         }
+        if (existing.machine_on_hold) {
+            return res.status(409).json({ success: false, message: "This machine is currently On Hold. Tests cannot be reviewed until it is unheld." });
+        }
         if (existing.status !== "Submitted") {
             return res.status(409).json({ success: false, message: `Test must be Submitted before review (currently ${existing.status}).` });
         }
@@ -149,13 +158,6 @@ export const decideTest = async (req, res) => {
         if (existing.status !== "Reviewed") {
             return res.status(409).json({ success: false, message: `Test must be Reviewed by a Mechanical Engineer first (currently ${existing.status}).` });
         }
-        // 4-Wheel Tractor tests no longer get individual CE decisions -- the Chief Engineer
-        // approves/rejects the ME-finalized compiled report as a whole instead (see
-        // finalReportController.js / reportController.js#decideReport).
-        if (existing.catalog_key === "FOUR_WHEEL_TRACTOR") {
-            return res.status(409).json({ success: false, message: "This test is part of a 4-Wheel Tractor final report. Once a Mechanical Engineer finalizes the report, approve or reject it from Reports for Approval instead of deciding on individual tests." });
-        }
-
         const test = await decideTestRecord(req.params.id, req.user.user_id, decision, comments);
 
         let report = null;
@@ -165,7 +167,7 @@ export const decideTest = async (req, res) => {
         const allTestsForMachine = await listTestRecords({ machineId: existing.machine_id });
         const pendingTests = allTestsForMachine.filter(t => !['Approved', 'Rejected'].includes(t.status));
 
-        if (pendingTests.length === 0) {
+        if (pendingTests.length === 0 && existing.catalog_key !== "FOUR_WHEEL_TRACTOR") {
             // All tests are complete -- generate the generic report dump (the 4-Wheel Tractor's
             // official template is generated earlier, by the ME's Finalize Report action, not
             // here). Kept in its own try/catch so a report-generation problem never fails the
@@ -215,6 +217,9 @@ export const requestReschedule = async (req, res) => {
         const testId = req.params.id;
         const existing = await getTestRecordById(testId);
         if (!existing) return res.status(404).json({ success: false, message: 'Test not found.' });
+        if (existing.machine_on_hold) {
+            return res.status(409).json({ success: false, message: 'This machine is currently On Hold.' });
+        }
 
         const isAssigned = (existing.assigned_ta_id && Number(existing.assigned_ta_id) === Number(req.user.user_id)) ||
                            (existing.technical_assistant_id && Number(existing.technical_assistant_id) === Number(req.user.user_id));
@@ -235,6 +240,9 @@ export const approveReschedule = async (req, res) => {
         const testId = req.params.id;
         const existing = await getTestRecordById(testId);
         if (!existing) return res.status(404).json({ success: false, message: 'Test not found.' });
+        if (existing.machine_on_hold) {
+            return res.status(409).json({ success: false, message: 'This machine is currently On Hold.' });
+        }
         // Set date to today and lock
         const today = new Date().toISOString().split('T')[0];
         await db.query('UPDATE Schedules SET scheduled_date = ?, status = ? WHERE test_id = ?', [today, 'Locked', testId]);

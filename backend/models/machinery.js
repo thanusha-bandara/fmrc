@@ -18,7 +18,9 @@ export const getAllMachinery = async () => {
             m.*,
             COUNT(tr.test_id) AS total_tests,
             SUM(CASE WHEN tr.status = 'Approved' THEN 1 ELSE 0 END) AS approved_tests,
-            (SELECT COUNT(*) FROM Reports r WHERE r.machine_id = m.machine_id AND r.ce_status = 'Approved') AS has_approved_report
+            (SELECT COUNT(*) FROM Reports r WHERE r.machine_id = m.machine_id AND r.ce_status = 'Approved') AS has_approved_report,
+            (SELECT r.ce_status FROM Reports r WHERE r.machine_id = m.machine_id ORDER BY r.approval_date DESC LIMIT 1) AS report_ce_status,
+            (SELECT r.ce_comments FROM Reports r WHERE r.machine_id = m.machine_id ORDER BY r.approval_date DESC LIMIT 1) AS report_ce_comments
         FROM Machinery m
         LEFT JOIN Test_Records tr ON tr.machine_id = m.machine_id
         GROUP BY m.machine_id
@@ -73,4 +75,46 @@ export const updateMachinery = async (machineId, {
 export const deleteMachinery = async (machineId) => {
     const [result] = await db.query(`DELETE FROM Machinery WHERE machine_id = ?`, [machineId]);
     return result.affectedRows > 0;
+};
+
+export const setMachineHoldStatus = async (machineId, isOnHold, holdReason) => {
+    const conn = await db.getConnection();
+    try {
+        await conn.beginTransaction();
+        await conn.query(
+            `UPDATE Machinery SET is_on_hold = ?, hold_reason = ? WHERE machine_id = ?`,
+            [Boolean(isOnHold), isOnHold ? (holdReason || null) : null, machineId]
+        );
+
+        if (isOnHold) {
+            // Preserve the assigned TA on Test_Records before removing the active schedule so
+            // the TA still sees their saved drafts while on hold and gets reassigned on unhold.
+            await conn.query(
+                `UPDATE Test_Records tr
+                 JOIN Schedules s ON s.test_id = tr.test_id
+                 SET tr.technical_assistant_id = COALESCE(tr.technical_assistant_id, s.assigned_ta_id)
+                 WHERE tr.machine_id = ? AND tr.status = 'Draft'`,
+                [machineId]
+            );
+            await conn.query(
+                `DELETE s FROM Schedules s
+                 JOIN Test_Records tr ON s.test_id = tr.test_id
+                 WHERE tr.machine_id = ? AND tr.status = 'Draft' AND s.status IN ('Scheduled', 'Rescheduled', 'Locked')`,
+                [machineId]
+            );
+            await conn.query(
+                `UPDATE Test_Records SET reschedule_requested = 0, reschedule_reason = NULL
+                 WHERE machine_id = ? AND status = 'Draft'`,
+                [machineId]
+            );
+        }
+
+        await conn.commit();
+        return getMachineryById(machineId);
+    } catch (error) {
+        await conn.rollback();
+        throw error;
+    } finally {
+        conn.release();
+    }
 };

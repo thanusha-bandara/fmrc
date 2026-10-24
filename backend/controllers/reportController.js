@@ -44,10 +44,9 @@ export const downloadReport = async (req, res) => {
             return res.status(404).json({ success: false, message: "Report not found." });
         }
 
-        // A report pending Chief Engineer approval can only be previewed by the Chief
-        // Engineer (before deciding) or an Admin -- everyone else waits for approval.
+        // A report pending Chief Engineer approval can only be previewed by the Chief Engineer.
         const requesterRole = req.user?.role;
-        const isPrivileged = requesterRole === "Chief_Engineer" || requesterRole === "Admin";
+        const isPrivileged = requesterRole === "Chief_Engineer";
         if (report.ce_status === "Pending" && !isPrivileged) {
             return res.status(403).json({ success: false, message: "This report is pending Chief Engineer approval." });
         }
@@ -93,11 +92,11 @@ export const decideReport = async (req, res) => {
 
         const report = await updateReportDecision(req.params.id, req.user.user_id, decision, comments);
 
-        // Approving the compiled report is the only "decision" tractor tests get under this
-        // flow (see testController.js#decideTest's FOUR_WHEEL_TRACTOR guard) -- cascade it down
-        // so every underlying test also shows Approved, instead of staying Reviewed forever.
-        if (decision === "Approved" && report.machine_id) {
-            await approveAllTestsForMachine(report.machine_id, req.user.user_id);
+        // Cascade Chief Engineer's report decision (Approved or Rejected) down to every underlying
+        // test for this machine so Approved reports move tests to Completed Tests and Rejected
+        // reports move tests to Rejected Tests.
+        if (report.machine_id) {
+            await approveAllTestsForMachine(report.machine_id, req.user.user_id, decision, comments);
         }
 
         res.status(200).json({ success: true, message: `Report marked as ${decision}.`, report });

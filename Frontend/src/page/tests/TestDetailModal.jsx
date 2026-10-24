@@ -61,11 +61,11 @@ function KeyValueEditor({ pairs, setPairs, readOnly }) {
 // modal works the same whether it was opened from a role+queue list (Assigned/Pending/
 // Completed) or straight off the Machinery page's test list.
 function getMode(test, role, userId) {
+  if (Boolean(test.machine_on_hold) && role !== 'CE') return 'readonly';
   if ((role === 'TA' || role === 'AI') && test.status === 'Draft' && test.assigned_ta_id === userId) return 'entry';
   if (role === 'ME' && test.status === 'Submitted') return 'review';
-  // Tractor-catalog tests skip the per-test CE decision -- CE approves the compiled
-  // final report as a whole instead, from the separate Reports for Approval screen.
-  if (role === 'CE' && test.status === 'Reviewed' && test.catalog_key !== 'FOUR_WHEEL_TRACTOR') return 'decide';
+  // Chief Engineer only views individual tests here -- final Approve/Reject decision happens
+  // on the compiled Final Report in Reports for Approval.
   return 'readonly';
 }
 
@@ -254,6 +254,12 @@ export default function TestDetailModal({ test, role, userId, onClose, onSaved }
           <div className="rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 font-medium mb-4">{error}</div>
         )}
 
+        {Boolean(test.machine_on_hold) && (
+          <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2.5 text-sm text-amber-800 font-medium mb-4">
+            <span className="font-bold">Machine On Hold:</span> {test.machine_hold_reason || 'Paused by Chief Engineer.'} All recorded test data is safely preserved until the machine is unheld.
+          </div>
+        )}
+
         {mode === 'entry' && (
           <div className="space-y-4">
             <p className="text-sm font-semibold text-gray-700">Test Parameters</p>
@@ -340,9 +346,17 @@ export default function TestDetailModal({ test, role, userId, onClose, onSaved }
               </p>
             )}
             {test.me_recommendation && test.me_recommendation !== 'Pending' && (
-              <div className="bg-gray-50 rounded-lg p-3 text-sm text-gray-700 space-y-1">
+              <div className={`rounded-lg p-3 text-sm space-y-1 border ${test.me_recommendation === 'Not Recommended' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-gray-50 border-gray-200 text-gray-700'}`}>
                 <p><span className="font-semibold">ME Recommendation:</span> {test.me_recommendation}</p>
                 {test.me_comments && <p><span className="font-semibold">ME Comments:</span> {test.me_comments}</p>}
+                {test.mechanical_engineer_name && <p><span className="font-semibold">Reviewed by:</span> {test.mechanical_engineer_name}</p>}
+              </div>
+            )}
+            {(test.status === 'Approved' || test.status === 'Rejected') && (
+              <div className={`rounded-lg p-3 text-sm space-y-1 border ${test.status === 'Rejected' ? 'bg-red-50 border-red-200 text-red-800' : 'bg-green-50 border-green-200 text-green-800'}`}>
+                <p><span className="font-semibold">CE Decision:</span> {test.status}</p>
+                {test.ce_comments && <p><span className="font-semibold">CE Comments:</span> {test.ce_comments}</p>}
+                {test.chief_engineer_name && <p><span className="font-semibold">Decided by:</span> {test.chief_engineer_name}</p>}
               </div>
             )}
           </div>

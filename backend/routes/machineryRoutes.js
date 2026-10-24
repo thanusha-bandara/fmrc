@@ -4,7 +4,8 @@ import {
     listMachines,
     getMachine,
     editMachine,
-    removeMachine
+    removeMachine,
+    toggleHoldMachine
 } from "../controllers/machineryController.js";
 import { getFinalizeStatus, finalizeReport } from "../controllers/finalReportController.js";
 import { authenticate, authorize } from "../middlware/auth.js";
@@ -16,8 +17,9 @@ router.get("/:id", authenticate, getMachine);
 router.post("/", authenticate, authorize("Admin"), registerMachine);
 router.put("/:id", authenticate, authorize("Admin"), editMachine);
 router.delete("/:id", authenticate, authorize("Admin"), removeMachine);
+router.post("/:id/hold", authenticate, authorize("Chief_Engineer"), toggleHoldMachine);
 
-router.get("/:id/finalize-status", authenticate, authorize("Admin", "Mechanical_Engineer"), getFinalizeStatus);
-router.post("/:id/finalize-report", authenticate, authorize("Admin", "Mechanical_Engineer"), finalizeReport);
+router.get("/:id/finalize-status", authenticate, authorize("Mechanical_Engineer"), getFinalizeStatus);
+router.post("/:id/finalize-report", authenticate, authorize("Mechanical_Engineer"), finalizeReport);
 
 export default router;

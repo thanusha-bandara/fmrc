@@ -1,9 +1,10 @@
 import { getFinalizeStatusForMachine, applyFinalReportSelections } from "../models/testRecord.js";
+import { getMachineryById } from "../models/machinery.js";
 import { generateOfficialTractorReport } from "../services/officialTractorReportService.js";
+import { generateOfficialHarvesterReport } from "../services/officialHarvesterReportService.js";
 
 // Mechanical Engineer: readiness check for a machine's Finalize Report screen -- whether every
-// catalog-driven test has been reviewed yet, and (if so) the 5 implement groups to pick a
-// replicate from.
+// test has been reviewed yet, and the replicate groups (one chosen replicate per group).
 export const getFinalizeStatus = async (req, res) => {
     try {
         const status = await getFinalizeStatusForMachine(req.params.id);
@@ -13,19 +14,24 @@ export const getFinalizeStatus = async (req, res) => {
     }
 };
 
-// Mechanical Engineer: submits one chosen replicate per implement group, then immediately
+// Mechanical Engineer: submits the chosen replicates (one per implement/field test group), then immediately
 // generates the official report (pending Chief Engineer approval -- see reportController.js).
 export const finalizeReport = async (req, res) => {
     try {
         const machineId = req.params.id;
-        const { selections } = req.body;
+        const { selections } = req.body || {};
         if (!selections || typeof selections !== "object" || Array.isArray(selections)) {
             return res.status(400).json({ success: false, message: "selections must be an object of { group_key: test_id }." });
         }
 
+        const machine = await getMachineryById(machineId);
+        if (machine && machine.is_on_hold) {
+            return res.status(409).json({ success: false, message: "This machine is currently On Hold and cannot be finalized." });
+        }
+
         const status = await getFinalizeStatusForMachine(machineId);
         if (status.groups.length === 0) {
-            return res.status(400).json({ success: false, message: "This machine has no implement-replicate groups to finalize." });
+            return res.status(400).json({ success: false, message: "Final report template is not available for this machine yet." });
         }
         if (!status.ready) {
             return res.status(409).json({ success: false, message: `${status.notReviewedCount} test(s) still need to be reviewed by a Mechanical Engineer before finalizing.` });
@@ -47,7 +53,14 @@ export const finalizeReport = async (req, res) => {
         }
 
         await applyFinalReportSelections(machineId, selections);
-        const report = await generateOfficialTractorReport(machineId);
+
+        const allMachineTests = [...status.singular, ...status.groups.flatMap((g) => g.tests)];
+        const isCombineHarvester = allMachineTests.some((t) => t.catalog_key === "COMBINE_HARVESTER");
+
+        const report = isCombineHarvester
+            ? await generateOfficialHarvesterReport(machineId)
+            : await generateOfficialTractorReport(machineId);
+
         res.status(201).json({ success: true, message: "Final report generated and sent for Chief Engineer approval.", report });
     } catch (error) {
         res.status(500).json({ success: false, message: "Error finalizing report.", error: error.message });

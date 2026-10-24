@@ -47,13 +47,17 @@ export const renderTemplateSection = (doc, formData, template) => {
     });
 };
 
-export const generateMachineReport = async (machineId, chiefEngineerId) => {
+export const generateMachineReport = async (machineId, chiefEngineerId = null, { pendingApproval = false } = {}) => {
     const fileName = `FMRC-Machine-Report-${machineId}-${Date.now()}.pdf`;
     const filePath = path.join(REPORTS_DIR, fileName);
 
     // Fetch all test records for this machine
-    const allTests = await listTestRecords({ machineId });
-    if (allTests.length === 0) throw new Error("No tests found for this machine");
+    const rawTests = await listTestRecords({ machineId });
+    if (rawTests.length === 0) throw new Error("No tests found for this machine");
+
+    // For replicate groups, include only the ME-selected replicate in the final report
+    const allTests = rawTests.filter((t) => !t.group_key || Boolean(t.include_in_final_report));
+    if (allTests.length === 0) throw new Error("No tests selected for this machine report");
 
     // We can get machine info from the first test record
     const firstTest = allTests[0];
@@ -160,10 +164,11 @@ export const generateMachineReport = async (machineId, chiefEngineerId) => {
     const report = await createReport({
         machine_id: machineId,
         test_id: null,
-        report_type: 'Machine Certification',
+        report_type: 'Official Machine Certification Report',
         pdf_file_path: fileName,
-        approved_by: chiefEngineerId,
-        certification_status: anyRejected ? "Rejected" : "Certified"
+        approved_by: pendingApproval ? null : chiefEngineerId,
+        certification_status: anyRejected ? "Rejected" : "Certified",
+        ce_status: pendingApproval ? "Pending" : "Approved"
     });
 
     return report;

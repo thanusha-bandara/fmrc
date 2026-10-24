@@ -39,15 +39,16 @@ function bucketize(tests, role, queueType, userId) {
     return tests.filter((t) => ['Reviewed', 'Approved', 'Rejected'].includes(t.status) && t.mechanical_engineer_id === userId);
   }
   // CE
-  if (queueType === 'assigned') return tests.filter((t) => t.status === 'Reviewed' && t.me_recommendation === 'Recommended');
-  if (queueType === 'pending') return tests.filter((t) => t.status === 'Reviewed' && t.me_recommendation === 'Not Recommended');
-  return tests.filter((t) => t.chief_engineer_id === userId && ['Approved', 'Rejected'].includes(t.status));
+  if (queueType === 'assigned') return tests.filter((t) => t.status === 'Reviewed');
+  if (queueType === 'pending') return tests.filter((t) => t.status === 'Rejected' && (!t.chief_engineer_id || t.chief_engineer_id === userId));
+  return tests.filter((t) => t.status === 'Approved' && (!t.chief_engineer_id || t.chief_engineer_id === userId));
 }
 
 const TITLES = {
   TA: { assigned: 'Assigned Tests', pending: 'Pending Tests', completed: 'Completed Tests' },
+  AI: { assigned: 'Assigned Tests', pending: 'Pending Tests', completed: 'Completed Tests' },
   ME: { assigned: 'Assigned Tests', pending: 'Pending Tests', completed: 'Completed Tests' },
-  CE: { assigned: 'Assigned Tests', pending: 'Pending Tests', completed: 'Completed Tests' }
+  CE: { assigned: 'Assigned Tests', pending: 'Rejected Tests', completed: 'Completed Tests' }
 };
 
 const STATUS_STYLES = {
@@ -73,7 +74,7 @@ function parseFormData(raw) {
 }
 
 const CircularProgress = ({ test }) => {
-  if (test.status === 'Rejected') {
+  if (test.status === 'Rejected' || (Boolean(test.machine_on_hold) && test.status !== 'Approved')) {
     return (
       <div className="flex items-center gap-2">
         <span className="w-2.5 h-2.5 rounded-sm bg-yellow-200 border border-yellow-400 shadow-sm"></span>
@@ -258,15 +259,24 @@ export default function RoleTestList({ role, queueType }) {
             <div className="flex-1 overflow-y-auto px-6 py-2 space-y-3">
               {bucket.map((test) => {
                 const isSelected = selectedAssignedTest?.test_id === test.test_id;
+                const isNotRecommended = test.me_recommendation === 'Not Recommended';
                 return (
                   <div
                     key={test.test_id}
                     onClick={() => setSelectedAssignedTest(test)}
-                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${isSelected ? 'border-[#006B33] bg-green-50 shadow-md' : 'border-gray-200 bg-white hover:border-[#006B33]/30'}`}
+                    className={`p-4 rounded-xl border-2 cursor-pointer transition-all ${
+                      isNotRecommended
+                        ? isSelected
+                          ? 'border-red-600 bg-red-100/80 shadow-md'
+                          : 'border-red-300 bg-red-50 hover:border-red-500'
+                        : isSelected
+                          ? 'border-[#006B33] bg-green-50 shadow-md'
+                          : 'border-gray-200 bg-white hover:border-[#006B33]/30'
+                    }`}
                   >
                     <div className="flex justify-between items-start mb-2">
                       {test.scheduled_date ? (
-                        <div className="flex items-center gap-2 text-sm font-bold text-[#006B33]">
+                        <div className={`flex items-center gap-2 text-sm font-bold ${isNotRecommended ? 'text-red-600' : 'text-[#006B33]'}`}>
                            <Clock size={16} /> 
                            {new Date(test.scheduled_date).toLocaleDateString(undefined, { weekday: 'short', year: 'numeric', month: 'short', day: 'numeric' })}
                         </div>
@@ -277,12 +287,12 @@ export default function RoleTestList({ role, queueType }) {
                       )}
                       <StatusBadge status={test.status} />
                     </div>
-                    <h3 className="font-bold text-lg text-gray-900 leading-tight">
+                    <h3 className={`font-bold text-lg leading-tight ${isNotRecommended ? 'text-red-900' : 'text-gray-900'}`}>
                       {test.machine_name} {test.machine_model ? `(${test.machine_model})` : ''}
                     </h3>
-                    <p className="text-sm text-gray-600 mt-1 font-medium">{test.test_name}</p>
+                    <p className={`text-sm mt-1 font-medium ${isNotRecommended ? 'text-red-700' : 'text-gray-600'}`}>{test.test_name}</p>
                     {test.me_recommendation && test.me_recommendation !== 'Pending' && (
-                      <p className={`text-xs font-bold mt-2 ${test.me_recommendation === 'Recommended' ? 'text-[#10b981]' : 'text-red-500'}`}>
+                      <p className={`text-xs font-bold mt-2 ${test.me_recommendation === 'Recommended' ? 'text-[#10b981]' : 'text-red-600'}`}>
                         ME Recommendation: {test.me_recommendation}
                       </p>
                     )}
@@ -331,6 +341,19 @@ export default function RoleTestList({ role, queueType }) {
                   }
                 };
 
+                if (selectedAssignedTest && Boolean(selectedAssignedTest.machine_on_hold) && role !== 'CE') {
+                  return (
+                    <div>
+                      <button disabled className="w-full py-3.5 rounded-xl font-bold text-base bg-amber-100 text-amber-800 border border-amber-300 cursor-not-allowed">
+                        Machine On Hold
+                      </button>
+                      <p className="text-center text-xs text-amber-700 mt-2 font-semibold">
+                        {selectedAssignedTest.machine_hold_reason || 'This machine has been placed on hold by the Chief Engineer.'}
+                      </p>
+                    </div>
+                  );
+                }
+
                 if ((role === 'TA' || role === 'AI') && !isToday && selectedAssignedTest) {
                   if (selectedAssignedTest.reschedule_requested) {
                     return (
@@ -377,7 +400,7 @@ export default function RoleTestList({ role, queueType }) {
                           : 'bg-gray-200 text-gray-400 cursor-not-allowed'
                       }`}
                     >
-                      {(role === 'TA' || role === 'AI') ? 'Start Test' : role === 'CE' ? 'Review & Decide' : 'Review Test'}
+                      {(role === 'TA' || role === 'AI') ? 'Start Test' : role === 'CE' ? 'View Test' : 'Review Test'}
                     </button>
                     {(role === 'TA' || role === 'AI') && selectedAssignedTest && (
                        <p className="text-center text-xs text-gray-500 mt-2 font-semibold">

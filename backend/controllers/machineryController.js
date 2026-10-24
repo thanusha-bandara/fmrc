@@ -3,8 +3,10 @@ import {
     getAllMachinery,
     getMachineryById,
     updateMachinery,
-    deleteMachinery
+    deleteMachinery,
+    setMachineHoldStatus
 } from "../models/machinery.js";
+import { runAutomaticScheduling } from "../services/autoScheduleService.js";
 
 // Admin-only: register a new agricultural machine into the central database.
 export const registerMachine = async (req, res) => {
@@ -65,5 +67,32 @@ export const removeMachine = async (req, res) => {
         res.status(200).json({ success: true, message: "Machine deleted successfully." });
     } catch (error) {
         res.status(500).json({ success: false, message: "Error deleting machine.", error: error.message });
+    }
+};
+
+export const toggleHoldMachine = async (req, res) => {
+    try {
+        const existing = await getMachineryById(req.params.id);
+        if (!existing) {
+            return res.status(404).json({ success: false, message: "Machine not found." });
+        }
+
+        const { is_on_hold, hold_reason } = req.body;
+        const holdFlag = Boolean(is_on_hold);
+
+        const machine = await setMachineHoldStatus(req.params.id, holdFlag, hold_reason);
+
+        // Re-run intelligent automatic scheduling so held machine's slots are freed (or unheld machine's draft tests are rescheduled)
+        await runAutomaticScheduling();
+
+        res.status(200).json({
+            success: true,
+            message: holdFlag
+                ? `${machine.machine_name} placed on hold and its pending tests removed from schedule.`
+                : `${machine.machine_name} unheld and its pending tests have been rescheduled.`,
+            machine
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: "Error updating machine hold status.", error: error.message });
     }
 };
