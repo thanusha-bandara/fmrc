@@ -60,7 +60,9 @@ export const runAutomaticScheduling = async () => {
             FROM Test_Records tr 
             JOIN Machinery m ON tr.machine_id = m.machine_id 
             LEFT JOIN Schedules s ON tr.test_id = s.test_id 
-            WHERE s.test_id IS NULL OR s.status IN ('Scheduled', 'Rescheduled', 'Cancelled')
+            WHERE (s.test_id IS NULL OR s.status IN ('Scheduled', 'Rescheduled', 'Cancelled'))
+              AND tr.status = 'Draft'
+              AND COALESCE(m.is_on_hold, 0) = 0
             GROUP BY tr.test_id
         `);
 

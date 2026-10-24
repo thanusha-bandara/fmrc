@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { Wrench, Plus, Search, X, ChevronDown, ChevronRight, CheckCircle2, Clock, AlertCircle, Edit, Trash2 } from 'lucide-react';
+import { Wrench, Plus, Search, X, ChevronDown, ChevronRight, CheckCircle2, Clock, AlertCircle, Edit, Trash2, PauseCircle, PlayCircle } from 'lucide-react';
 import Swal from 'sweetalert2';
-import { listMachinery, registerMachine, updateMachine, deleteMachine } from '../api/machinery';
+import { listMachinery, registerMachine, updateMachine, deleteMachine, toggleHoldMachine } from '../api/machinery';
 import { createTest, listTests } from '../api/tests';
 import { generateStandardTestSet, getCatalogs } from '../api/testTemplates';
 import { getErrorMessage } from '../api/client';
@@ -13,6 +13,8 @@ export default function Machinery() {
   const role = localStorage.getItem('userRole') || 'TA';
   const userId = Number(localStorage.getItem('userId'));
   const isAdmin = role === 'ADMIN';
+  const isCE = role === 'CE';
+  const canManageActions = isAdmin || isCE;
 
   const [machines, setMachines] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -102,10 +104,64 @@ export default function Machinery() {
   };
 
   const statusFor = (m) => {
+    if (m.is_on_hold) return 'On Hold';
     if (m.has_approved_report > 0) return 'Certified';
     if (m.approved_tests > 0 && m.approved_tests === m.total_tests) return 'Certified';
     if (m.total_tests > 0) return 'Testing';
     return 'Registered';
+  };
+
+  const handleToggleHold = async (machine) => {
+    const willHold = !machine.is_on_hold;
+    if (willHold) {
+      const { value: reason, isConfirmed } = await Swal.fire({
+        title: `Hold ${machine.machine_name}?`,
+        html: `All active tests for <b>${machine.machine_name}</b> will be placed on hold and removed from the current schedule.<br/>Saved test data will be kept intact until you unhold the machine.`,
+        input: 'textarea',
+        inputPlaceholder: 'Enter reason for holding this machine (e.g. Engine breakdown)...',
+        showCancelButton: true,
+        confirmButtonText: 'Hold Machine',
+        confirmButtonColor: '#d97706',
+        inputValidator: (value) => {
+          if (!value || !value.trim()) {
+            return 'Please enter a reason for holding the machine.';
+          }
+        }
+      });
+      if (!isConfirmed) return;
+
+      try {
+        await toggleHoldMachine(machine.machine_id, true, reason.trim());
+        loadMachines();
+        if (machineTests[machine.machine_id]) {
+          await refreshMachineTests(machine.machine_id);
+        }
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `${machine.machine_name} placed on hold`, showConfirmButton: false, timer: 3000 });
+      } catch (err) {
+        setError(getErrorMessage(err, 'Could not hold machine.'));
+      }
+    } else {
+      const result = await Swal.fire({
+        title: `Unhold ${machine.machine_name}?`,
+        html: `Resume testing for <b>${machine.machine_name}</b>?${machine.hold_reason ? `<br/><br/><b>Previous hold reason:</b> ${machine.hold_reason}` : ''}<br/><br/>All remaining draft tests will be automatically rescheduled from where they left off.`,
+        icon: 'question',
+        showCancelButton: true,
+        confirmButtonText: 'Yes, Unhold & Reschedule',
+        confirmButtonColor: '#006B33'
+      });
+      if (!result.isConfirmed) return;
+
+      try {
+        await toggleHoldMachine(machine.machine_id, false, '');
+        loadMachines();
+        if (machineTests[machine.machine_id]) {
+          await refreshMachineTests(machine.machine_id);
+        }
+        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `${machine.machine_name} unheld and rescheduled`, showConfirmButton: false, timer: 3000 });
+      } catch (err) {
+        setError(getErrorMessage(err, 'Could not unhold machine.'));
+      }
+    }
   };
 
   const filtered = machines.filter((m) =>
@@ -337,79 +393,106 @@ export default function Machinery() {
               <th className="py-4 px-6">Registered</th>
               <th className="py-4 px-6">Status</th>
               <th className="py-4 px-6 text-center">Tests</th>
-              {isAdmin && <th className="py-4 px-6 text-right">Actions</th>}
+              {canManageActions && <th className="py-4 px-6 text-right">Actions</th>}
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {loading ? (
-              <tr><td colSpan={isAdmin ? 8 : 7} className="py-8 px-6 text-center text-gray-400">Loading...</td></tr>
+              <tr><td colSpan={canManageActions ? 8 : 7} className="py-8 px-6 text-center text-gray-400">Loading...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={isAdmin ? 8 : 7} className="py-8 px-6 text-center text-gray-400">No machinery found.</td></tr>
+              <tr><td colSpan={canManageActions ? 8 : 7} className="py-8 px-6 text-center text-gray-400">No machinery found.</td></tr>
             ) : filtered.map(machine => (
               <React.Fragment key={machine.machine_id}>
                 <tr 
                   onClick={() => toggleExpand(machine.machine_id)}
-                  className={`hover:bg-gray-50 transition-colors cursor-pointer ${expandedMachine === machine.machine_id ? 'bg-green-50/30' : ''}`}
+                  className={`hover:bg-gray-50 transition-colors cursor-pointer ${machine.is_on_hold ? 'bg-amber-50/40' : expandedMachine === machine.machine_id ? 'bg-green-50/30' : ''}`}
                 >
                   <td className="py-4 px-6 text-gray-400">
                     {expandedMachine === machine.machine_id ? <ChevronDown size={20} /> : <ChevronRight size={20} />}
                   </td>
                   <td className="py-4 px-6 font-bold text-gray-900 flex items-center gap-2">
-                    <Wrench size={16} className="text-[#006B33]" /> {machine.machine_name}
+                    <Wrench size={16} className={machine.is_on_hold ? 'text-amber-600' : 'text-[#006B33]'} /> {machine.machine_name}
                   </td>
                   <td className="py-4 px-6 text-gray-600">{machine.model || '-'}</td>
                   <td className="py-4 px-6 text-gray-600">{machine.supplier || '-'}</td>
                   <td className="py-4 px-6 text-gray-600 whitespace-nowrap">{formatDate(machine.registration_date)}</td>
                   <td className="py-4 px-6">
-                    <span className="px-2 py-1 bg-blue-100 text-blue-700 rounded-full text-xs font-bold">
+                    <span
+                      title={machine.is_on_hold && machine.hold_reason ? `Reason: ${machine.hold_reason}` : ''}
+                      className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                        machine.is_on_hold
+                          ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                          : statusFor(machine) === 'Certified'
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-blue-100 text-blue-700'
+                      }`}
+                    >
                       {statusFor(machine)}
                     </span>
                   </td>
                   <td className="py-4 px-6 text-center text-gray-600">{machine.total_tests || 0}</td>
-                  {isAdmin && (
+                  {canManageActions && (
                     <td className="py-4 px-6 text-right space-x-2 whitespace-nowrap">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setActiveMachine(machine); setShowTestModal(true); }}
-                        className="text-xs font-bold text-[#006B33] hover:underline bg-[#006B33]/10 px-3 py-1.5 rounded-full"
-                      >
-                        + Add Test
-                      </button>
-                      <select
-                        value={selectedCatalog}
-                        onChange={(e) => setSelectedCatalog(e.target.value)}
-                        onClick={(e) => e.stopPropagation()}
-                        className="text-xs font-semibold text-gray-700 border border-gray-300 rounded-full px-2.5 py-1.5 bg-white outline-none focus:border-[#006B33]"
-                      >
-                        {Object.entries(catalogs).map(([key, label]) => (
-                          <option key={key} value={key}>{label}</option>
-                        ))}
-                      </select>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleGenerateStandardSet(machine); }}
-                        className="text-xs font-bold text-[#006B33] hover:underline bg-[#006B33]/10 px-3 py-1.5 rounded-full"
-                      >
-                        Generate Set
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); openReportDetails(machine); }}
-                        className="text-xs font-bold text-[#006B33] hover:underline bg-[#006B33]/10 px-3 py-1.5 rounded-full"
-                      >
-                        Report Details
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); openEditModal(machine); }}
-                        className="text-xs font-bold text-blue-600 hover:underline bg-blue-50 px-2 py-1.5 rounded-full ml-2"
-                        title="Edit Machine"
-                      >
-                        <Edit size={14} />
-                      </button>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); handleDeleteMachine(machine); }}
-                        className="text-xs font-bold text-red-600 hover:underline bg-red-50 px-2 py-1.5 rounded-full ml-1"
-                        title="Delete Machine"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                      {isCE && statusFor(machine) !== 'Certified' && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); handleToggleHold(machine); }}
+                          className={`inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-full transition-colors ${
+                            machine.is_on_hold
+                              ? 'bg-green-100 text-green-800 hover:bg-green-200 border border-green-300'
+                              : 'bg-amber-100 text-amber-800 hover:bg-amber-200 border border-amber-300'
+                          }`}
+                          title={machine.is_on_hold ? 'Unhold Machine & Reschedule Tests' : 'Hold Machine & Pause Tests'}
+                        >
+                          {machine.is_on_hold ? <PlayCircle size={13} /> : <PauseCircle size={13} />}
+                          {machine.is_on_hold ? 'Unhold' : 'Hold'}
+                        </button>
+                      )}
+                      {isAdmin && (
+                        <>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setActiveMachine(machine); setShowTestModal(true); }}
+                            className="text-xs font-bold text-[#006B33] hover:underline bg-[#006B33]/10 px-3 py-1.5 rounded-full"
+                          >
+                            + Add Test
+                          </button>
+                          <select
+                            value={selectedCatalog}
+                            onChange={(e) => setSelectedCatalog(e.target.value)}
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-xs font-semibold text-gray-700 border border-gray-300 rounded-full px-2.5 py-1.5 bg-white outline-none focus:border-[#006B33]"
+                          >
+                            {Object.entries(catalogs).map(([key, label]) => (
+                              <option key={key} value={key}>{label}</option>
+                            ))}
+                          </select>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleGenerateStandardSet(machine); }}
+                            className="text-xs font-bold text-[#006B33] hover:underline bg-[#006B33]/10 px-3 py-1.5 rounded-full"
+                          >
+                            Generate Set
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); openReportDetails(machine); }}
+                            className="text-xs font-bold text-[#006B33] hover:underline bg-[#006B33]/10 px-3 py-1.5 rounded-full"
+                          >
+                            Report Details
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); openEditModal(machine); }}
+                            className="text-xs font-bold text-blue-600 hover:underline bg-blue-50 px-2 py-1.5 rounded-full ml-2"
+                            title="Edit Machine"
+                          >
+                            <Edit size={14} />
+                          </button>
+                          <button
+                            onClick={(e) => { e.stopPropagation(); handleDeleteMachine(machine); }}
+                            className="text-xs font-bold text-red-600 hover:underline bg-red-50 px-2 py-1.5 rounded-full ml-1"
+                            title="Delete Machine"
+                          >
+                            <Trash2 size={14} />
+                          </button>
+                        </>
+                      )}
                     </td>
                   )}
                 </tr>
@@ -417,10 +500,15 @@ export default function Machinery() {
                 {/* Expanded Tests Sub-table */}
                 {expandedMachine === machine.machine_id && (
                   <tr>
-                    <td colSpan={isAdmin ? 8 : 7} className="p-0 border-b border-gray-200">
+                    <td colSpan={canManageActions ? 8 : 7} className="p-0 border-b border-gray-200">
                       <div className="bg-gray-50 p-6 shadow-inner">
-                        <div className="flex items-center gap-2 mb-3">
+                        <div className="flex items-center justify-between gap-2 mb-3">
                           <h4 className="text-sm font-bold text-gray-700">Tests for {machine.machine_name}</h4>
+                          {Boolean(machine.is_on_hold) && (
+                            <span className="text-xs font-semibold bg-amber-100 text-amber-800 border border-amber-300 px-3 py-1 rounded-full">
+                              Machine On Hold{machine.hold_reason ? ` — ${machine.hold_reason}` : ''}
+                            </span>
+                          )}
                         </div>
                         
                         {loadingTests ? (
@@ -451,9 +539,13 @@ export default function Machinery() {
                                     badgeClass = 'bg-green-50 text-green-700 border-green-200';
                                     Icon = CheckCircle2;
                                   } else if (t.status === 'Rejected') {
-                                    displayStatus = 'Hold';
+                                    displayStatus = 'Rejected';
                                     badgeClass = 'bg-red-50 text-red-700 border-red-200';
                                     Icon = AlertCircle;
+                                  } else if (machine.is_on_hold || t.machine_on_hold) {
+                                    displayStatus = 'On Hold';
+                                    badgeClass = 'bg-amber-50 text-amber-800 border-amber-300';
+                                    Icon = PauseCircle;
                                   }
 
                                   return (

@@ -25,6 +25,8 @@ pool.getConnection((err, connection) => {
     return;
   }
   console.log("Connected to the database.");
+  connection.query("ALTER TABLE Machinery ADD COLUMN is_on_hold BOOLEAN DEFAULT FALSE", () => {});
+  connection.query("ALTER TABLE Machinery ADD COLUMN hold_reason TEXT DEFAULT NULL", () => {});
   connection.release();
 });
 

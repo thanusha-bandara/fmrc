@@ -1,6 +1,26 @@
 import db from '../config/db.js';
 
 export const createReport = async ({ test_id, machine_id, report_type, pdf_file_path, approved_by, certification_status, ce_status }) => {
+    if (machine_id && !test_id) {
+        const existing = await getReportByMachineId(machine_id);
+        if (existing) {
+            await db.query(
+                `UPDATE Reports SET
+                    report_type = ?,
+                    pdf_file_path = ?,
+                    approved_by = ?,
+                    certification_status = ?,
+                    ce_status = ?,
+                    ce_comments = NULL,
+                    decided_at = NULL,
+                    approval_date = CURRENT_TIMESTAMP
+                 WHERE report_id = ?`,
+                [report_type, pdf_file_path, approved_by || null, certification_status || 'Certified', ce_status || 'Pending', existing.report_id]
+            );
+            return getReportById(existing.report_id);
+        }
+    }
+
     const [result] = await db.query(
         `INSERT INTO Reports (test_id, machine_id, report_type, pdf_file_path, approved_by, certification_status, ce_status)
          VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -22,7 +42,7 @@ export const createReport = async ({ test_id, machine_id, report_type, pdf_file_
 // joins or a pending report would vanish from every query below.
 export const getAllReports = async () => {
     const [rows] = await db.query(`
-        SELECT r.*, ANY_VALUE(m.machine_name) AS machine_name, ANY_VALUE(u.full_name) AS approved_by_name
+        SELECT r.*, ANY_VALUE(m.machine_name) AS machine_name, ANY_VALUE(m.model) AS machine_model, ANY_VALUE(u.full_name) AS approved_by_name
         FROM Reports r
         JOIN Machinery m ON r.machine_id = m.machine_id OR r.test_id IN (SELECT test_id FROM Test_Records WHERE machine_id = m.machine_id)
         LEFT JOIN Users u ON r.approved_by = u.user_id

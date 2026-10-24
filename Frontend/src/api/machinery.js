@@ -17,3 +17,6 @@ export const getFinalizeStatus = (machineId) =>
 
 export const finalizeReport = (machineId, selections) =>
     apiClient.post(`/machinery/${machineId}/finalize-report`, { selections }).then((r) => r.data);
+
+export const toggleHoldMachine = (id, isOnHold, holdReason = "") =>
+    apiClient.post(`/machinery/${id}/hold`, { is_on_hold: isOnHold, hold_reason: holdReason }).then((r) => r.data);

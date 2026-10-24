@@ -14,6 +14,7 @@ export default function ReportsForApproval() {
   const [tab, setTab] = useState('pending');
   const [pending, setPending] = useState([]);
   const [approved, setApproved] = useState([]);
+  const [rejected, setRejected] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
 
@@ -28,7 +29,8 @@ export default function ReportsForApproval() {
     Promise.all([listPendingReports(), listReports()])
       .then(([pendingReports, allReports]) => {
         setPending(pendingReports);
-        setApproved(allReports.filter((r) => r.report_type === TRACTOR_REPORT_TYPE && r.ce_status === 'Approved'));
+        setApproved(allReports.filter((r) => r.ce_status === 'Approved'));
+        setRejected(allReports.filter((r) => r.ce_status === 'Rejected'));
       })
       .catch((err) => setError(getErrorMessage(err, 'Could not load reports.')))
       .finally(() => setLoading(false));
@@ -79,7 +81,7 @@ export default function ReportsForApproval() {
     }
   };
 
-  const rows = tab === 'pending' ? pending : approved;
+  const rows = tab === 'pending' ? pending : tab === 'approved' ? approved : rejected;
 
   return (
     <div className="p-8 space-y-6">
@@ -105,6 +107,12 @@ export default function ReportsForApproval() {
         >
           Approved ({approved.length})
         </button>
+        <button
+          onClick={() => setTab('rejected')}
+          className={`px-4 py-2 rounded-full text-sm font-semibold ${tab === 'rejected' ? 'bg-red-600 text-white' : 'bg-white border border-gray-300 text-gray-600'}`}
+        >
+          Rejected ({rejected.length})
+        </button>
       </div>
 
       <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
@@ -113,7 +121,7 @@ export default function ReportsForApproval() {
             <tr>
               <th className="py-4 px-6">Machine</th>
               <th className="py-4 px-6">Report Type</th>
-              <th className="py-4 px-6">{tab === 'pending' ? 'Generated' : 'Approved'}</th>
+              <th className="py-4 px-6">{tab === 'pending' ? 'Generated' : tab === 'approved' ? 'Approved' : 'Rejected'}</th>
               <th className="py-4 px-6 text-right">Actions</th>
             </tr>
           </thead>
@@ -121,13 +129,20 @@ export default function ReportsForApproval() {
             {loading ? (
               <tr><td colSpan={4} className="py-8 px-6 text-center text-gray-400">Loading...</td></tr>
             ) : rows.length === 0 ? (
-              <tr><td colSpan={4} className="py-8 px-6 text-center text-gray-400">{tab === 'pending' ? 'No reports pending approval.' : 'No approved reports yet.'}</td></tr>
+              <tr><td colSpan={4} className="py-8 px-6 text-center text-gray-400">
+                {tab === 'pending' ? 'No reports pending approval.' : tab === 'approved' ? 'No approved reports yet.' : 'No rejected reports.'}
+              </td></tr>
             ) : rows.map((r) => (
               <tr key={r.report_id} className="hover:bg-gray-50">
                 <td className="py-4 px-6 font-bold text-gray-900 flex items-center gap-2">
-                  <Wrench size={16} className="text-[#006B33]" /> {r.machine_name} {r.machine_model ? `(${r.machine_model})` : ''}
+                  <Wrench size={16} className={tab === 'rejected' ? 'text-red-600' : 'text-[#006B33]'} /> {r.machine_name} {r.machine_model ? `(${r.machine_model})` : ''}
                 </td>
-                <td className="py-4 px-6 text-gray-600">{r.report_type}</td>
+                <td className="py-4 px-6 text-gray-600">
+                  <div>{r.report_type}</div>
+                  {tab === 'rejected' && r.ce_comments && (
+                    <div className="text-xs text-red-600 font-medium mt-0.5">Reason: {r.ce_comments}</div>
+                  )}
+                </td>
                 <td className="py-4 px-6 text-gray-600 whitespace-nowrap">{new Date(tab === 'pending' ? r.approval_date : r.decided_at || r.approval_date).toLocaleDateString()}</td>
                 <td className="py-4 px-6 text-right space-x-2 whitespace-nowrap">
                   {tab === 'pending' ? (
@@ -145,12 +160,19 @@ export default function ReportsForApproval() {
                         Approve / Reject
                       </button>
                     </>
-                  ) : (
+                  ) : tab === 'approved' ? (
                     <button
                       onClick={() => handleDownload(r)}
                       className="inline-flex items-center gap-1 text-xs font-bold text-white bg-[#006B33] hover:bg-green-700 px-3 py-1.5 rounded-full"
                     >
                       <Download size={12} /> Download PDF
+                    </button>
+                  ) : (
+                    <button
+                      onClick={() => handleView(r)}
+                      className="inline-flex items-center gap-1 text-xs font-bold text-red-700 hover:underline bg-red-50 border border-red-200 px-3 py-1.5 rounded-full"
+                    >
+                      <Eye size={12} /> View PDF
                     </button>
                   )}
                 </td>

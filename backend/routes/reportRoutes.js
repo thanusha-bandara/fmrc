@@ -6,11 +6,11 @@ const router = express.Router();
 
 router.use(authenticate);
 
-router.get("/", listReports);
-router.get("/pending", authorize("Chief_Engineer", "Admin"), listPendingReports);
-router.get("/test/:testId", getReportForTest);
-router.get("/:id", getReport);
-router.get("/:id/download", downloadReport);
+router.get("/", authorize("Chief_Engineer"), listReports);
+router.get("/pending", authorize("Chief_Engineer"), listPendingReports);
+router.get("/test/:testId", authorize("Chief_Engineer"), getReportForTest);
+router.get("/:id", authorize("Chief_Engineer"), getReport);
+router.get("/:id/download", authorize("Chief_Engineer"), downloadReport);
 router.post("/:id/decide", authorize("Chief_Engineer"), decideReport);
 
 export default router;

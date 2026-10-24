@@ -32,49 +32,89 @@ function bucketize(tests, role, queueType, userId) {
     if (queueType === 'pending') return tests.filter((t) => t.status === 'Submitted' && hasProgress(t.me_review_progress) && t.mechanical_engineer_id === userId);
     return tests.filter((t) => ['Reviewed', 'Approved', 'Rejected'].includes(t.status) && t.mechanical_engineer_id === userId);
   }
-  if (queueType === 'assigned') return tests.filter((t) => t.status === 'Reviewed' && t.me_recommendation === 'Recommended');
-  if (queueType === 'pending') return tests.filter((t) => t.status === 'Reviewed' && t.me_recommendation === 'Not Recommended');
-  return tests.filter((t) => t.chief_engineer_id === userId && ['Approved', 'Rejected'].includes(t.status));
+  if (queueType === 'assigned') return tests.filter((t) => t.status === 'Reviewed');
+  if (queueType === 'pending') return tests.filter((t) => t.status === 'Rejected' && (!t.chief_engineer_id || t.chief_engineer_id === userId));
+  return tests.filter((t) => t.status === 'Approved' && (!t.chief_engineer_id || t.chief_engineer_id === userId));
 }
 
 const CARD_LABELS = {
   TA: { assigned: 'Assigned Tests', pending: 'Pending Tests', completed: 'Completed Tests' },
   AI: { assigned: 'Assigned Tests', pending: 'Pending Tests', completed: 'Completed Tests' },
   ME: { assigned: 'Assigned Tests', pending: 'Pending Tests', completed: 'Completed Tests' },
-  CE: { assigned: 'Assigned Tests', pending: 'Pending Tests', completed: 'Completed Tests' }
+  CE: { assigned: 'Assigned Tests', pending: 'Rejected Tests', completed: 'Completed Tests' }
 };
 
-const ACTION_LABEL = { TA: 'Start Test', AI: 'Start Test', ME: 'Review Test', CE: 'Review & Decide' };
+const ACTION_LABEL = { TA: 'Start Test', AI: 'Start Test', ME: 'Review Test', CE: 'View Test' };
 
 // Shared test item row for both assigned card views
 function AssignedTestItem({ t, isSelected, onClick, today }) {
   const tDate = t.scheduled_date ? new Date(t.scheduled_date) : null;
   const tIsToday = tDate && new Date(t.scheduled_date).setHours(0,0,0,0) === today.getTime();
+  const isNotRecommended = t.me_recommendation === 'Not Recommended';
+  const isOnHold = Boolean(t.machine_on_hold);
+
   return (
     <div
       onClick={onClick}
-      className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${isSelected ? 'border-[#006B33] bg-green-50' : 'border-gray-100 hover:border-[#006B33]/30 bg-white'}`}
+      className={`p-3 rounded-xl border-2 cursor-pointer transition-all ${
+        isOnHold
+          ? isSelected
+            ? 'border-amber-600 bg-amber-100/80'
+            : 'border-amber-300 bg-amber-50 hover:border-amber-500'
+          : isNotRecommended
+            ? isSelected
+              ? 'border-red-600 bg-red-100/80'
+              : 'border-red-300 bg-red-50 hover:border-red-500'
+            : isSelected
+              ? 'border-[#006B33] bg-green-50'
+              : 'border-gray-100 hover:border-[#006B33]/30 bg-white'
+      }`}
     >
       {tDate && (
-        <div className={`flex items-center gap-1 text-xs font-bold mb-1 ${tIsToday ? 'text-[#006B33]' : 'text-gray-400'}`}>
+        <div className={`flex items-center gap-1 text-xs font-bold mb-1 ${
+          isOnHold ? 'text-amber-700' : isNotRecommended ? 'text-red-600' : tIsToday ? 'text-[#006B33]' : 'text-gray-400'
+        }`}>
           <Clock size={11} /> {tIsToday ? 'Today' : tDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
         </div>
       )}
-      <p className="font-bold text-sm text-gray-900 leading-tight">{t.machine_name} {t.machine_model ? `(${t.machine_model})` : ''}</p>
-      <p className="text-xs text-gray-500 mt-0.5">{t.test_name}</p>
+      <p className={`font-bold text-sm leading-tight ${isOnHold ? 'text-amber-900' : isNotRecommended ? 'text-red-900' : 'text-gray-900'}`}>
+        {t.machine_name} {t.machine_model ? `(${t.machine_model})` : ''}
+      </p>
+      <p className={`text-xs mt-0.5 ${isOnHold ? 'text-amber-800 font-medium' : isNotRecommended ? 'text-red-700 font-medium' : 'text-gray-500'}`}>
+        {t.test_name}
+      </p>
+      <div className="flex flex-wrap gap-1 mt-1.5 empty:hidden">
+        {isOnHold && (
+          <span className="inline-block text-[11px] font-bold text-amber-800 bg-amber-200/80 px-2 py-0.5 rounded-full">
+            Machine On Hold
+          </span>
+        )}
+        {isNotRecommended && (
+          <span className="inline-block text-[11px] font-bold text-red-700 bg-red-200/70 px-2 py-0.5 rounded-full">
+            ME: Not Recommended
+          </span>
+        )}
+      </div>
     </div>
   );
 }
 
 // Shared item row for Pending / Completed cards
 function SimpleTestItem({ t, showCheck, onClick }) {
+  const isOnHold = Boolean(t.machine_on_hold) && !['Approved', 'Rejected'].includes(t.status);
   return (
     <div onClick={onClick} className="flex items-center justify-between py-2.5 border-b border-gray-100 last:border-0 cursor-pointer hover:bg-gray-50 transition-colors px-2 -mx-2 rounded-lg">
       <div>
         <p className="font-bold text-sm text-gray-900">{t.machine_name} {t.machine_model ? `(${t.machine_model})` : ''}</p>
         <p className="text-xs text-gray-500">{t.test_name}</p>
       </div>
-      {showCheck && <CheckCircle2 size={16} className={t.status === 'Approved' ? 'text-[#10b981]' : 'text-red-400'} />}
+      {isOnHold ? (
+        <span className="text-[11px] font-bold text-amber-800 bg-amber-100 border border-amber-300 px-2 py-0.5 rounded-full">
+          On Hold
+        </span>
+      ) : (
+        showCheck && <CheckCircle2 size={16} className={t.status === 'Approved' ? 'text-[#10b981]' : 'text-red-400'} />
+      )}
     </div>
   );
 }
@@ -154,18 +194,36 @@ export default function TestManagementHub({ role }) {
                     const isSelected = selectedTest?.test_id === t.test_id;
                     const tDate = t.scheduled_date ? new Date(t.scheduled_date) : null;
                     const tIsToday = tDate && new Date(t.scheduled_date).setHours(0,0,0,0) === today.getTime();
+                    const isNotRecommended = t.me_recommendation === 'Not Recommended';
                     return (
                       <div key={t.test_id} onClick={() => setSelectedTest(t)}
-                        className={`px-3 py-2.5 cursor-pointer flex items-center justify-between transition-all ${isSelected ? 'bg-green-50' : 'hover:bg-gray-50'}`}>
+                        className={`px-3 py-2.5 cursor-pointer flex items-center justify-between transition-all ${
+                          isNotRecommended
+                            ? isSelected
+                              ? 'bg-red-100/80'
+                              : 'bg-red-50 hover:bg-red-100/50'
+                            : isSelected
+                              ? 'bg-green-50'
+                              : 'hover:bg-gray-50'
+                        }`}>
                         <div>
-                          <p className={`text-sm font-semibold ${isSelected ? 'text-[#006B33]' : 'text-gray-800'}`}>{t.test_name}</p>
+                          <p className={`text-sm font-semibold ${
+                            isNotRecommended ? 'text-red-800' : isSelected ? 'text-[#006B33]' : 'text-gray-800'
+                          }`}>{t.test_name}</p>
                           {tDate && (
-                            <div className={`flex items-center gap-1 text-xs font-bold mt-0.5 ${tIsToday ? 'text-[#006B33]' : 'text-gray-400'}`}>
+                            <div className={`flex items-center gap-1 text-xs font-bold mt-0.5 ${
+                              isNotRecommended ? 'text-red-600' : tIsToday ? 'text-[#006B33]' : 'text-gray-400'
+                            }`}>
                               <Clock size={10} /> {tIsToday ? 'Today' : tDate.toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric' })}
                             </div>
                           )}
+                          {isNotRecommended && (
+                            <span className="inline-block mt-1 text-[10px] font-bold text-red-700 bg-red-200/70 px-1.5 py-0.5 rounded-full">
+                              ME: Not Recommended
+                            </span>
+                          )}
                         </div>
-                        {isSelected && <div className="w-2 h-2 rounded-full bg-[#006B33] flex-shrink-0" />}
+                        {isSelected && <div className={`w-2 h-2 rounded-full flex-shrink-0 ${isNotRecommended ? 'bg-red-600' : 'bg-[#006B33]'}`} />}
                       </div>
                     );
                   })}
@@ -221,6 +279,19 @@ export default function TestManagementHub({ role }) {
           <button disabled className="w-full py-2.5 rounded-xl font-bold text-sm bg-gray-200 text-gray-400 cursor-not-allowed">
             {ACTION_LABEL[role]}
           </button>
+        </div>
+      );
+    }
+
+    if (selectedTest.machine_on_hold && role !== 'CE') {
+      return (
+        <div className="pt-3 border-t border-gray-100">
+          <button disabled className="w-full py-2.5 rounded-xl font-bold text-sm bg-amber-100 text-amber-800 border border-amber-300 cursor-not-allowed">
+            Machine On Hold
+          </button>
+          <p className="text-center text-xs text-amber-700 mt-1.5 font-semibold truncate">
+            {selectedTest.machine_hold_reason || 'Paused by Chief Engineer'}
+          </p>
         </div>
       );
     }
@@ -366,7 +437,7 @@ export default function TestManagementHub({ role }) {
           <div className="flex-1 overflow-y-auto px-5 min-h-0 pb-5">
             {loading ? <p className="text-sm text-gray-400 py-3">Loading...</p>
             : pending.length === 0 ? <p className="text-sm text-gray-400 py-3">Nothing here right now.</p>
-            : pending.map(t => <SimpleTestItem key={t.test_id} t={t} showCheck={false} onClick={() => setActiveTest(t)} />)}
+            : pending.map(t => <SimpleTestItem key={t.test_id} t={t} showCheck={role === 'CE'} onClick={() => setActiveTest(t)} />)}
           </div>
         </div>
 
@@ -430,10 +501,10 @@ export default function TestManagementHub({ role }) {
                 <AssignedListBody maxH="max-h-none" />
               ) : expandedCard === 'pending' ? (
                 pending.length === 0 ? <p className="text-sm text-gray-400">Nothing here right now.</p>
-                : pending.map(t => <SimpleTestItem key={t.test_id} t={t} showCheck={false} />)
+                : pending.map(t => <SimpleTestItem key={t.test_id} t={t} showCheck={role === 'CE'} onClick={() => { setExpandedCard(null); setActiveTest(t); }} />)
               ) : (
                 completed.length === 0 ? <p className="text-sm text-gray-400">Nothing here right now.</p>
-                : completed.map(t => <SimpleTestItem key={t.test_id} t={t} showCheck={true} />)
+                : completed.map(t => <SimpleTestItem key={t.test_id} t={t} showCheck={true} onClick={() => { setExpandedCard(null); setActiveTest(t); }} />)
               )}
             </div>
 

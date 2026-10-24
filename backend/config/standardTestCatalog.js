@@ -51,7 +51,8 @@ const harvesterFieldTests = (variety, method) =>
         schema_key: "HARVESTER_FIELD",
         is_field_test: true,
         requires_water: true,
-        required_season: "Harvesting"
+        required_season: "Harvesting",
+        group_key: implementGroupKey(`HARVESTER_${variety.toUpperCase()}`, method)
     }));
 
 const COMBINE_HARVESTER = [

@@ -15,7 +15,9 @@ export const getPendingTests = async () => {
         FROM Test_Records tr
         JOIN Machinery m ON tr.machine_id = m.machine_id
         LEFT JOIN Schedules s ON tr.test_id = s.test_id
-        WHERE s.test_id IS NULL OR s.status IN ('Scheduled', 'Rescheduled', 'Cancelled')
+        WHERE (s.test_id IS NULL OR s.status IN ('Scheduled', 'Rescheduled', 'Cancelled'))
+          AND tr.status = 'Draft'
+          AND COALESCE(m.is_on_hold, 0) = 0
     `);
 
     // Map the database rows to the format expected by the scheduling algorithm
@@ -39,20 +41,23 @@ const DETAIL_SELECT = `
         m.machine_name,
         m.model AS machine_model,
         m.supplier AS machine_supplier,
-        ta.full_name AS technical_assistant_name,
+        m.is_on_hold AS machine_on_hold,
+        m.hold_reason AS machine_hold_reason,
+        COALESCE(ta.full_name, s_ta.full_name) AS technical_assistant_name,
         me.full_name AS mechanical_engineer_name,
         ce.full_name AS chief_engineer_name,
         s.schedule_id,
         s.scheduled_date,
         s.time_slot,
-        s.assigned_ta_id,
+        COALESCE(s.assigned_ta_id, tr.technical_assistant_id, m.responsible_ta_id) AS assigned_ta_id,
         s.status AS schedule_status
     FROM Test_Records tr
     JOIN Machinery m ON tr.machine_id = m.machine_id
+    LEFT JOIN Schedules s ON s.test_id = tr.test_id
     LEFT JOIN Users ta ON tr.technical_assistant_id = ta.user_id
+    LEFT JOIN Users s_ta ON s.assigned_ta_id = s_ta.user_id
     LEFT JOIN Users me ON tr.mechanical_engineer_id = me.user_id
     LEFT JOIN Users ce ON tr.chief_engineer_id = ce.user_id
-    LEFT JOIN Schedules s ON s.test_id = tr.test_id
 `;
 
 // Create a new test request for a machine (Admin / Mechanical Engineer).
@@ -150,7 +155,7 @@ export const listTestRecords = async ({ status, machineId, technicalAssistantId,
         params.push(technicalAssistantId);
     }
     if (assignedTaId) {
-        conditions.push("s.assigned_ta_id = ?");
+        conditions.push("COALESCE(s.assigned_ta_id, tr.technical_assistant_id, m.responsible_ta_id) = ?");
         params.push(assignedTaId);
     }
 
@@ -198,6 +203,12 @@ export const applyFinalReportSelections = async (machineId, selections) => {
                 [testId]
             );
         }
+        // If the previous final report for this machine was rejected, move its tests back from
+        // Rejected to Reviewed while the newly generated report awaits Chief Engineer approval.
+        await conn.query(
+            `UPDATE Test_Records SET status = 'Reviewed', ce_comments = NULL WHERE machine_id = ? AND status = 'Rejected'`,
+            [machineId]
+        );
         await conn.commit();
     } catch (error) {
         await conn.rollback();
@@ -291,14 +302,15 @@ export const decideTestRecord = async (testId, chiefEngineerId, decision, commen
 // FOUR_WHEEL_TRACTOR guard), so without this they'd stay 'Reviewed' forever, which hides them
 // from the TA/ME/CE "completed" history queues (RoleTestList.jsx bucketize requires
 // status Approved/Rejected there) even after the machine is fully certified.
-export const approveAllTestsForMachine = async (machineId, chiefEngineerId) => {
+export const approveAllTestsForMachine = async (machineId, chiefEngineerId, decision = 'Approved', comments = null) => {
     await db.query(
         `UPDATE Test_Records SET
-            status = 'Approved',
+            status = ?,
             chief_engineer_id = ?,
+            ce_comments = ?,
             approved_at = CURRENT_TIMESTAMP
-         WHERE machine_id = ? AND catalog_key = 'FOUR_WHEEL_TRACTOR' AND status = 'Reviewed'`,
-        [chiefEngineerId, machineId]
+         WHERE machine_id = ? AND status IN ('Reviewed', 'Rejected')`,
+        [decision, chiefEngineerId, comments || null, machineId]
     );
 };
 
