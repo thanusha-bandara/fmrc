@@ -43,9 +43,9 @@ const DETAIL_SELECT = `
         m.supplier AS machine_supplier,
         m.is_on_hold AS machine_on_hold,
         m.hold_reason AS machine_hold_reason,
-        COALESCE(ta.full_name, s_ta.full_name) AS technical_assistant_name,
-        me.full_name AS mechanical_engineer_name,
-        ce.full_name AS chief_engineer_name,
+        COALESCE(ta.full_name, s_ta.full_name, m_ta.full_name) AS technical_assistant_name,
+        COALESCE(me.full_name, (SELECT u.full_name FROM Users u WHERE u.role = 'Mechanical_Engineer' ORDER BY u.user_id ASC LIMIT 1)) AS mechanical_engineer_name,
+        COALESCE(ce.full_name, (SELECT u.full_name FROM Users u WHERE u.role = 'Chief_Engineer' ORDER BY u.user_id ASC LIMIT 1)) AS chief_engineer_name,
         s.schedule_id,
         s.scheduled_date,
         s.time_slot,
@@ -56,6 +56,7 @@ const DETAIL_SELECT = `
     LEFT JOIN Schedules s ON s.test_id = tr.test_id
     LEFT JOIN Users ta ON tr.technical_assistant_id = ta.user_id
     LEFT JOIN Users s_ta ON s.assigned_ta_id = s_ta.user_id
+    LEFT JOIN Users m_ta ON m.responsible_ta_id = m_ta.user_id
     LEFT JOIN Users me ON tr.mechanical_engineer_id = me.user_id
     LEFT JOIN Users ce ON tr.chief_engineer_id = ce.user_id
 `;

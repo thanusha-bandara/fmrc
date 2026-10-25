@@ -154,7 +154,7 @@ export default function FinalizeReport() {
                         </div>
                       ) : loadingStatus && !status ? (
                         <div className="text-sm text-gray-500">Loading...</div>
-                      ) : !status || status.groups.length === 0 ? (
+                      ) : !status || status.totalCount === 0 ? (
                         <div className="text-sm text-gray-500 bg-white p-4 rounded-lg border border-gray-200">
                           Final report template for this machine is not configured yet.
                         </div>

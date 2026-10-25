@@ -330,6 +330,147 @@ function calcHarvesterField(formData) {
   return out;
 }
 
+// ---- SEEDER ---------------------------------------------------------------------------------
+
+const SEEDER_FERTILIZER_KEYS = ['urea', 'tsp', 'nilketa', 'dam_keta', 'yaramila'];
+
+function calcSeederLabFertilizer(formData) {
+  let out = { ...formData };
+  const rowKeys = [];
+  SEEDER_FERTILIZER_KEYS.forEach((f) => {
+    for (let pos = 1; pos <= 6; pos++) rowKeys.push(`${f}_pos_${pos}`);
+  });
+  out = calcStationAverageTable(out, 'fertilizer_calibration', rowKeys, ['t1', 't2', 't3', 't4', 't5']);
+  return out;
+}
+
+function calcSeederField(formData) {
+  let out = { ...formData };
+
+  // Soil moisture table: compute moisture_percent from wet & dry weight if entered, then average
+  ['sample1', 'sample2', 'sample3'].forEach((s) => {
+    const wet = toNumber(out[`soil_moisture_table.wet_weight_g.${s}`]);
+    const dry = toNumber(out[`soil_moisture_table.dry_weight_g.${s}`]);
+    if (wet !== null && dry && dry > 0) {
+      out[`soil_moisture_table.moisture_percent.${s}`] = fmt(((wet - dry) / dry) * 100);
+    }
+  });
+  out = calcStationAverageTable(out, 'soil_moisture_table', ['wet_weight_g', 'dry_weight_g', 'moisture_percent'], ['sample1', 'sample2', 'sample3']);
+
+  // Seed dimensions L x W x T (mm)
+  const l = out['seed_condition.length_mm'];
+  const w = out['seed_condition.width_mm'];
+  const t = out['seed_condition.thickness_mm'];
+  if ([l, w, t].some((v) => !isBlank(v))) {
+    out['seed_condition.size_l_w_t_mm'] = `${l || '-'} x ${w || '-'} x ${t || '-'}`;
+  }
+
+  // 04. Condition of Operation averages
+  out = calcStationAverageTable(
+    out,
+    'operation_condition',
+    ['row_spacing_cm', 'plant_spacing_cm', 'depth_of_seeding_mm', 'amount_of_soil_cover', 'plants_per_hill', 'missing_hills_20', 'seeds_without_cover_20'],
+    ['r1', 'r2', 'r3']
+  );
+
+  // 05. Traveling speed
+  const distance = toNumber(out['field_performance.distance_m']);
+  const t1 = toNumber(out['traveling_speed_seeder.with_load.time1_sec']);
+  const t2 = toNumber(out['traveling_speed_seeder.with_load.time2_sec']);
+  const t3 = toNumber(out['traveling_speed_seeder.with_load.time3_sec']);
+  const aveSec = avg([t1, t2, t3]);
+  out['traveling_speed_seeder.with_load.ave_sec'] = fmt(aveSec);
+  const speedMs = distance !== null && aveSec ? distance / aveSec : null;
+  out['traveling_speed_seeder.with_load.speed_m_s'] = fmt(speedMs);
+
+  if (isBlank(out['field_performance.operating_speed_m_s']) && speedMs !== null) {
+    out['field_performance.operating_speed_m_s'] = fmt(speedMs);
+  }
+
+  const opTimeSec = toNumber(out['field_performance.actual_operating_time_s']);
+  const areaM2 = toNumber(out['field_performance.actual_area_covered_m2']);
+  const usedSeedKg = toNumber(out['field_performance.weight_of_used_seed_kg']);
+
+  if (isBlank(out['field_performance.seed_requirement_kg_acre']) && usedSeedKg !== null && areaM2) {
+    out['field_performance.seed_requirement_kg_acre'] = fmt((usedSeedKg * 4046.86) / areaM2);
+  }
+  if (isBlank(out['field_performance.field_capacity_ha_hr']) && areaM2 !== null && opTimeSec) {
+    const haHr = (areaM2 * 3600) / (opTimeSec * 10000);
+    out['field_performance.field_capacity_ha_hr'] = String(Math.round(haHr * 1000) / 1000);
+    if (isBlank(out['field_performance.field_capacity_acre_day'])) {
+      out['field_performance.field_capacity_acre_day'] = fmt(haHr * 8 * 2.471);
+    }
+  }
+
+  // 06. After Germination Data averages
+  out = calcStationAverageTable(
+    out,
+    'after_germination',
+    ['row_spacing_cm', 'plant_spacing_cm', 'plants_per_hill', 'missing_hills_20'],
+    ['r1', 'r2', 'r3']
+  );
+
+  return out;
+}
+
+function calcDiscPloughField(formData) {
+  let out = calcSharedFieldTestSections(formData);
+  out = calcStationAverageTable(out, 'soil_shear_strength', ['gauge_reading_lb_ft', 'gauge_reading_kg_m']);
+  out = calcStationAverageTable(out, 'soil_meter_reading', ['soil_meter_reading']);
+  calcAverageField(out, 'weed_data', ['weed_density_1', 'weed_density_2', 'weed_density_3'], 'weed_density_avg');
+  calcAverageField(out, 'weed_data', ['weed_height_1', 'weed_height_2', 'weed_height_3'], 'weed_height_avg');
+
+  const dWithout = toNumber(out['draft_measurement.draft_without_load_kn']);
+  const dWith = toNumber(out['draft_measurement.draft_with_load_kn']);
+  if (dWithout !== null && dWith !== null) {
+    out['draft_measurement.difference_kn'] = fmt(dWith - dWithout);
+  }
+  return out;
+}
+
+function calcShredderField(formData) {
+  const out = { ...formData };
+  calcAverageField(out, 'fodder_details', ['length_1_mm', 'length_2_mm', 'length_3_mm', 'length_4_mm'], 'length_avg_mm');
+  calcAverageField(out, 'fodder_details', ['stem_dia_1_mm', 'stem_dia_2_mm', 'stem_dia_3_mm', 'stem_dia_4_mm'], 'stem_dia_avg_mm');
+
+  const weightKg = toNumber(out['fodder_details.fodder_weight_kg']);
+  const timeMin = toNumber(out['fodder_details.time_to_chopping_min']) || toNumber(out['test_conditions.total_time_min']);
+  if (weightKg !== null && timeMin && timeMin > 0) {
+    const kgMin = weightKg / timeMin;
+    out['output_and_capacity.capacity_kg_min'] = fmt(kgMin);
+    out['output_and_capacity.capacity_kg_hr'] = fmt(kgMin * 60);
+  }
+
+  const fuelMl = toNumber(out['test_conditions.used_fuel_ml']);
+  if (isBlank(out['output_and_capacity.fuel_consumption_l_hr']) && fuelMl !== null && timeMin && timeMin > 0) {
+    out['output_and_capacity.fuel_consumption_l_hr'] = fmt(((fuelMl / 1000) * 60) / timeMin);
+  }
+  return out;
+}
+
+function calcBrushCutterField(formData) {
+  const out = { ...formData };
+  for (const col of ['run1', 'run2', 'run3']) {
+    const fuelMl = toNumber(out[`runs_table.used_fuel_ml.${col}`]);
+    const timeMin = toNumber(out[`runs_table.total_time_min.${col}`]);
+    const areaM2 = toNumber(out[`runs_table.total_area_m2.${col}`]);
+
+    if (isBlank(out[`runs_table.fuel_consumption_l_hr.${col}`]) && fuelMl !== null && timeMin && timeMin > 0) {
+      out[`runs_table.fuel_consumption_l_hr.${col}`] = fmt(((fuelMl / 1000) * 60) / timeMin);
+    }
+    if (areaM2 !== null && timeMin && timeMin > 0) {
+      const haHr = (areaM2 / 10000) / (timeMin / 60);
+      if (isBlank(out[`runs_table.field_capacity_ha_hr.${col}`])) {
+        out[`runs_table.field_capacity_ha_hr.${col}`] = fmt(haHr);
+      }
+      if (isBlank(out[`runs_table.field_capacity_acres_day.${col}`])) {
+        out[`runs_table.field_capacity_acres_day.${col}`] = fmt(haHr * 8 * 2.471);
+      }
+    }
+  }
+  return out;
+}
+
 // ---- Entry point ---------------------------------------------------------------------------
 
 export function computeDerivedFields(templateKey, formData) {
@@ -352,8 +493,25 @@ export function computeDerivedFields(templateKey, formData) {
       return calcTransport(formData);
     case 'HARVESTER_FIELD':
       return calcHarvesterField(formData);
+    case 'SEEDER_LAB_FERTILIZER':
+      return calcSeederLabFertilizer(formData);
+    case 'SEEDER_FIELD':
+      return calcSeederField(formData);
+    case 'DISC_PLOUGH_FIELD':
+      return calcDiscPloughField(formData);
+    case 'SHREDDER_FIELD':
+      return calcShredderField(formData);
+    case 'BRUSH_CUTTER_FIELD':
+      return calcBrushCutterField(formData);
     case 'LAB':
     case 'HARVESTER_LAB':
+    case 'SEEDER_LAB_SEED_ONLY':
+    case 'SEEDER_FERTILIZER_FIELD':
+    case 'DISC_PLOUGH_LAB':
+    case 'ROTARY_LAB':
+    case 'SHREDDER_LAB':
+    case 'BRUSH_CUTTER_LAB':
+    case 'BRUSH_CUTTER_PUMP_FIELD':
     default:
       return { ...formData };
   }
