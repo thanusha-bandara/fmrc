@@ -40,7 +40,8 @@ export const login = async (req, res) => {
             return res.status(400).json({ success: false, message: "Username and password are required." });
         }
 
-        const user = await findUserByUsernameOrEmail(username);
+        const cleanUsername = typeof username === "string" ? username.trim() : username;
+        const user = await findUserByUsernameOrEmail(cleanUsername);
         if (!user) {
             return res.status(401).json({ success: false, message: "Invalid username or password." });
         }
@@ -49,7 +50,10 @@ export const login = async (req, res) => {
             return res.status(403).json({ success: false, message: "This account has been deactivated. Contact the System Administrator." });
         }
 
-        const passwordMatches = await bcrypt.compare(password, user.password_hash);
+        let passwordMatches = await bcrypt.compare(password, user.password_hash);
+        if (!passwordMatches && typeof password === "string" && password.trim() !== password) {
+            passwordMatches = await bcrypt.compare(password.trim(), user.password_hash);
+        }
         if (!passwordMatches) {
             return res.status(401).json({ success: false, message: "Invalid username or password." });
         }

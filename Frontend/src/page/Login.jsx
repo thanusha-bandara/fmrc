@@ -20,14 +20,15 @@ export default function FMRCLogin() {
     e.preventDefault();
     setError("");
 
-    if (!username || !password) {
+    const cleanUsername = username.trim();
+    if (!cleanUsername || !password) {
       setError("Username and password are required.");
       return;
     }
 
     setLoading(true);
     try {
-      const { token, user } = await login(username, password);
+      const { token, user } = await login(cleanUsername, password);
 
       localStorage.setItem("token", token);
       localStorage.setItem("userRole", toShortRole(user.role));
