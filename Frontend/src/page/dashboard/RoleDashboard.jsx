@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Calendar as CalendarIcon, ChevronRight, CheckSquare, Wrench } from 'lucide-react';
+import { Calendar as CalendarIcon, ChevronRight, CheckSquare, Wrench, Clock, AlertCircle } from 'lucide-react';
 import { getDashboardSummary } from '../../api/dashboard';
 import { listTests } from '../../api/tests';
 import { listMachinery } from '../../api/machinery';
@@ -57,30 +57,80 @@ export default function RoleDashboard({ role }) {
     <div className="p-6 space-y-6">
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
-        <section className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
-          <h2 className="text-lg font-bold text-gray-900 mb-4">Recently Accessed Tests</h2>
-          {loading ? (
-            <p className="text-sm text-gray-400">Loading...</p>
-          ) : recentTests.length === 0 ? (
-            <p className="text-sm text-gray-400">No tests to show yet.</p>
-          ) : (
-            <div className="divide-y divide-gray-100">
-              {recentTests.map((test) => (
-                <div
-                  key={test.test_id}
-                  onClick={() => navigate('/test-management')}
-                  className="flex items-center justify-between py-3 px-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors"
-                >
-                  <span className="font-semibold text-sm text-gray-800">{test.machine_name} — {test.test_name}</span>
-                  {['Approved', 'Rejected'].includes(test.status) ? (
-                    <CheckSquare size={18} className="text-[#10b981]" />
-                  ) : (
-                    <ChevronRight size={18} className="text-gray-400" />
-                  )}
-                </div>
-              ))}
+        <section className="lg:col-span-2 bg-white rounded-xl border border-gray-200 p-5 shadow-sm space-y-6">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900 mb-4">Recently Accessed Tests</h2>
+            {loading ? (
+              <p className="text-sm text-gray-400">Loading...</p>
+            ) : recentTests.length === 0 ? (
+              <p className="text-sm text-gray-400">No tests to show yet.</p>
+            ) : (
+              <div className="divide-y divide-gray-100">
+                {recentTests.map((test) => (
+                  <div
+                    key={test.test_id}
+                    onClick={() => navigate('/test-management')}
+                    className="flex items-center justify-between py-3 px-2 hover:bg-gray-50 rounded-lg cursor-pointer transition-colors"
+                  >
+                    <span className="font-semibold text-sm text-gray-800">{test.machine_name} — {test.test_name}</span>
+                    {['Approved', 'Rejected'].includes(test.status) ? (
+                      <CheckSquare size={18} className="text-[#10b981]" />
+                    ) : (
+                      <ChevronRight size={18} className="text-gray-400" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Predictive Report Completion Estimates */}
+          <div className="pt-4 border-t border-gray-100">
+            <div className="flex justify-between items-center mb-3">
+              <div>
+                <h3 className="text-base font-bold text-gray-900 flex items-center gap-2">
+                  <Clock size={18} className="text-[#006B33]" />
+                  Predictive Report Completion Dates (Rule-Based AI Estimation)
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Factors benchmark, queue (1 day/test), season window availability, and rain forecast
+                </p>
+              </div>
+              <span className="text-xs bg-emerald-50 text-emerald-700 px-2.5 py-1 rounded-full font-semibold border border-emerald-200">
+                Live Estimates
+              </span>
             </div>
-          )}
+
+            {loading ? (
+              <p className="text-sm text-gray-400 py-3">Loading predictions...</p>
+            ) : !summary?.predictiveEstimations || summary.predictiveEstimations.length === 0 ? (
+              <p className="text-sm text-gray-400 py-3">No active machines requiring report prediction.</p>
+            ) : (
+              <div className="space-y-2.5">
+                {summary.predictiveEstimations.slice(0, 4).map((est) => (
+                  <div key={est.machineId} className="p-3 bg-gray-50 rounded-lg border border-gray-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                    <div className="flex items-center gap-2.5">
+                      <Wrench size={16} className="text-[#006B33] flex-shrink-0" />
+                      <div>
+                        <span className="font-bold text-sm text-gray-800">{est.machineName}</span>
+                        <div className="text-[11px] text-gray-500">
+                          Base: {est.standardDuration}d | Queue: +{est.workloadDelay}d {est.seasonalDelay > 0 ? `| Season wait: +${est.seasonalDelay}d` : ''} | Weather: +{est.weatherBuffer}d
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-right sm:flex-shrink-0">
+                      <div className="text-xs font-bold text-[#006B33]">
+                        Est. Date: {new Date(est.estimatedCompletionDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                      </div>
+                      <div className="text-[11px] text-gray-500">
+                        Total duration: {est.estimatedDuration} days
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
         </section>
 
         <div className="space-y-6">

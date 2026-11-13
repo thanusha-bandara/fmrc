@@ -1,4 +1,5 @@
 import db from "../config/db.js";
+import { getDashboardEstimations } from "../services/predictiveEstimationService.js";
 
 // Returns a role-scoped summary used to populate each dashboard (Table 1 of the report:
 // TA -> assigned/pending entry, ME -> pending review, CE -> pending approval, Admin -> everything).
@@ -60,6 +61,13 @@ export const getDashboardSummary = async (req, res) => {
         if (role === "Admin") {
             const [[{ active_users }]] = await db.query(`SELECT COUNT(*) AS active_users FROM Users WHERE is_active = TRUE`);
             summary.activeUsers = active_users;
+        }
+
+        try {
+            summary.predictiveEstimations = await getDashboardEstimations(6);
+        } catch (estErr) {
+            console.warn("Could not attach predictive estimations to dashboard summary:", estErr.message);
+            summary.predictiveEstimations = [];
         }
 
         res.status(200).json({ success: true, summary });

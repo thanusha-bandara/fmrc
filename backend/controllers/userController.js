@@ -157,17 +157,42 @@ export const registerUser = async (req, res) => {
             return res.status(400).json({ success: false, message: PASSWORD_REQUIREMENTS_MESSAGE });
         }
 
-        const existing = await findUserByUsernameOrEmail(username) || await findUserByUsernameOrEmail(email);
-        if (existing) {
+        const cleanUsername = username.trim();
+        const cleanEmail = email.trim();
+
+        const existingByUsername = await findUserByUsernameOrEmail(cleanUsername);
+        if (existingByUsername && existingByUsername.username.toLowerCase() === cleanUsername.toLowerCase()) {
+            return res.status(409).json({ success: false, message: "A user with this username already exists in the system." });
+        }
+
+        const existingByEmail = await findUserByUsernameOrEmail(cleanEmail);
+        if (existingByEmail && existingByEmail.email.toLowerCase() === cleanEmail.toLowerCase()) {
+            return res.status(409).json({ success: false, message: "A user with this email already exists in the system." });
+        }
+
+        if (existingByUsername || existingByEmail) {
             return res.status(409).json({ success: false, message: "User already exists in the system." });
         }
 
         const password_hash = await bcrypt.hash(password, SALT_ROUNDS);
-        const user = await createUser({ full_name, username, email, password_hash, phone, role });
+        const user = await createUser({
+            full_name: full_name.trim(),
+            username: cleanUsername,
+            email: cleanEmail,
+            password_hash,
+            phone: phone ? phone.trim() : null,
+            role
+        });
 
         res.status(201).json({ success: true, message: "User registered successfully.", user });
     } catch (error) {
         if (error.code === "ER_DUP_ENTRY") {
+            const msg = (error.sqlMessage || "").toLowerCase();
+            if (msg.includes("username")) {
+                return res.status(409).json({ success: false, message: "A user with this username already exists in the system." });
+            } else if (msg.includes("email")) {
+                return res.status(409).json({ success: false, message: "A user with this email already exists in the system." });
+            }
             return res.status(409).json({ success: false, message: "User already exists in the system." });
         }
         res.status(500).json({ success: false, message: "Error registering user.", error: error.message });

@@ -391,6 +391,7 @@ export default function Machinery() {
               <th className="py-4 px-6">Model</th>
               <th className="py-4 px-6">Supplier</th>
               <th className="py-4 px-6">Registered</th>
+              <th className="py-4 px-6">Est. Report Date</th>
               <th className="py-4 px-6">Status</th>
               <th className="py-4 px-6 text-center">Tests</th>
               {canManageActions && <th className="py-4 px-6 text-right">Actions</th>}
@@ -398,9 +399,9 @@ export default function Machinery() {
           </thead>
           <tbody className="divide-y divide-gray-100">
             {loading ? (
-              <tr><td colSpan={canManageActions ? 8 : 7} className="py-8 px-6 text-center text-gray-400">Loading...</td></tr>
+              <tr><td colSpan={canManageActions ? 9 : 8} className="py-8 px-6 text-center text-gray-400">Loading...</td></tr>
             ) : filtered.length === 0 ? (
-              <tr><td colSpan={canManageActions ? 8 : 7} className="py-8 px-6 text-center text-gray-400">No machinery found.</td></tr>
+              <tr><td colSpan={canManageActions ? 9 : 8} className="py-8 px-6 text-center text-gray-400">No machinery found.</td></tr>
             ) : filtered.map(machine => (
               <React.Fragment key={machine.machine_id}>
                 <tr 
@@ -416,6 +417,18 @@ export default function Machinery() {
                   <td className="py-4 px-6 text-gray-600">{machine.model || '-'}</td>
                   <td className="py-4 px-6 text-gray-600">{machine.supplier || '-'}</td>
                   <td className="py-4 px-6 text-gray-600 whitespace-nowrap">{formatDate(machine.registration_date)}</td>
+                  <td className="py-4 px-6 whitespace-nowrap">
+                    <div className="flex flex-col">
+                      <span className="font-semibold text-xs text-gray-800">
+                        {machine.estimated_report_date ? formatDate(machine.estimated_report_date) : '-'}
+                      </span>
+                      {machine.estimated_duration_days && (
+                        <span className="text-[11px] text-[#006B33] font-medium">
+                          ~{machine.estimated_duration_days} days est.
+                        </span>
+                      )}
+                    </div>
+                  </td>
                   <td className="py-4 px-6">
                     <span
                       title={machine.is_on_hold && machine.hold_reason ? `Reason: ${machine.hold_reason}` : ''}
@@ -500,7 +513,7 @@ export default function Machinery() {
                 {/* Expanded Tests Sub-table */}
                 {expandedMachine === machine.machine_id && (
                   <tr>
-                    <td colSpan={canManageActions ? 8 : 7} className="p-0 border-b border-gray-200">
+                    <td colSpan={canManageActions ? 9 : 8} className="p-0 border-b border-gray-200">
                       <div className="bg-gray-50 p-6 shadow-inner">
                         <div className="flex items-center justify-between gap-2 mb-3">
                           <h4 className="text-sm font-bold text-gray-700">Tests for {machine.machine_name}</h4>
@@ -510,13 +523,29 @@ export default function Machinery() {
                             </span>
                           )}
                         </div>
+
                         
+                        {machine.estimated_report_date && (
+                          <div className="mb-3 px-3.5 py-2 bg-emerald-50 border border-emerald-200 rounded-lg text-xs text-emerald-800 flex flex-col sm:flex-row sm:items-center justify-between gap-1">
+                            <div className="flex items-center gap-2">
+                              <Clock size={14} className="text-[#006B33]" />
+                              <span className="font-semibold">Estimated Report Completion:</span>
+                              <span>{formatDate(machine.estimated_report_date)} (~{machine.estimated_duration_days} days)</span>
+                            </div>
+                            {machine.estimation_breakdown && (
+                              <span className="text-[11px] text-emerald-700">
+                                {machine.estimation_breakdown.standard}
+                              </span>
+                            )}
+                          </div>
+                        )}
                         {loadingTests ? (
                           <div className="text-sm text-gray-500">Loading tests...</div>
                         ) : !machineTests[machine.machine_id] || machineTests[machine.machine_id].length === 0 ? (
                           <div className="text-sm text-gray-500 bg-white p-4 rounded-lg border border-gray-200 text-center">
                             No tests registered for this machine yet.
                           </div>
+
                         ) : (
                           <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
                             <table className="w-full text-sm text-left">
@@ -565,6 +594,7 @@ export default function Machinery() {
                               </tbody>
                             </table>
                           </div>
+
                         )}
                       </div>
                     </td>

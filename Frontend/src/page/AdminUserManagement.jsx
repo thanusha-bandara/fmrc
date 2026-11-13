@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Users, UserPlus, Ban, Trash2, X } from 'lucide-react';
+import { Users, UserPlus, Ban, Trash2, X, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import Swal from 'sweetalert2';
 import { listUsers, registerUser, deactivateUser, updateUser, deleteUser } from '../api/users';
 import { getErrorMessage } from '../api/client';
@@ -9,6 +9,7 @@ import { PASSWORD_PATTERN, PASSWORD_REQUIREMENTS_MESSAGE } from '../utils/passwo
 const ROLE_LABELS = {
   Admin: 'Admin',
   Technical_Assistant: 'TA',
+  Agriculture_Instructor: 'AI',
   Mechanical_Engineer: 'ME',
   Chief_Engineer: 'CE'
 };
@@ -19,9 +20,11 @@ export default function AdminUserManagement() {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [modalError, setModalError] = useState('');
   const [showModal, setShowModal] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(emptyForm);
+  const [showPassword, setShowPassword] = useState(false);
 
   const loadUsers = () => {
     setLoading(true);
@@ -33,22 +36,50 @@ export default function AdminUserManagement() {
 
   useEffect(() => { loadUsers(); }, []);
 
+  const openModal = () => {
+    setForm(emptyForm);
+    setModalError('');
+    setShowPassword(false);
+    setShowModal(true);
+  };
+
+  const closeModal = () => {
+    setShowModal(false);
+    setModalError('');
+    setForm(emptyForm);
+    setShowPassword(false);
+  };
+
   const handleCreate = async (e) => {
     e.preventDefault();
-    setError('');
+    setModalError('');
+
     if (!PASSWORD_PATTERN.test(form.password)) {
-      setError(PASSWORD_REQUIREMENTS_MESSAGE);
+      setModalError(PASSWORD_REQUIREMENTS_MESSAGE);
       return;
     }
+
     setSaving(true);
     try {
-      await registerUser(form);
-      setShowModal(false);
-      setForm(emptyForm);
+      await registerUser({
+        ...form,
+        full_name: form.full_name.trim(),
+        username: form.username.trim(),
+        email: form.email.trim(),
+        phone: form.phone ? form.phone.trim() : ''
+      });
+      closeModal();
       loadUsers();
-      Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'User added successfully', showConfirmButton: false, timer: 3000 });
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: 'User added successfully',
+        showConfirmButton: false,
+        timer: 3000
+      });
     } catch (err) {
-      setError(getErrorMessage(err, 'Could not create user.'));
+      setModalError(getErrorMessage(err, 'Could not create user.'));
     } finally {
       setSaving(false);
     }
@@ -68,12 +99,27 @@ export default function AdminUserManagement() {
   };
 
   const handleDelete = async (user) => {
-    const result = await Swal.fire({ title: 'Are you sure?', text: `Delete user "${user.full_name}"? This cannot be undone.`, icon: 'warning', showCancelButton: true, confirmButtonColor: '#006B33', cancelButtonColor: '#d33', confirmButtonText: 'Yes, delete it!' });
+    const result = await Swal.fire({
+      title: 'Are you sure?',
+      text: `Delete user "${user.full_name}"? This cannot be undone.`,
+      icon: 'warning',
+      showCancelButton: true,
+      confirmButtonColor: '#006B33',
+      cancelButtonColor: '#d33',
+      confirmButtonText: 'Yes, delete it!'
+    });
     if (!result.isConfirmed) return;
     try {
       await deleteUser(user.user_id);
       loadUsers();
-      Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'User deleted', showConfirmButton: false, timer: 3000 });
+      Swal.fire({
+        toast: true,
+        position: 'top-end',
+        icon: 'success',
+        title: 'User deleted',
+        showConfirmButton: false,
+        timer: 3000
+      });
     } catch (err) {
       setError(getErrorMessage(err, 'Could not delete user.'));
     }
@@ -83,7 +129,10 @@ export default function AdminUserManagement() {
     <div className="p-8 space-y-6">
       <div className="flex justify-between items-center">
         <h1 className="text-2xl font-bold text-gray-900 tracking-tight">User Management</h1>
-        <button onClick={() => setShowModal(true)} className="flex items-center gap-2 bg-[#006B33] text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700">
+        <button
+          onClick={openModal}
+          className="flex items-center gap-2 bg-[#006B33] text-white px-4 py-2 rounded-lg font-medium hover:bg-green-700 transition-colors"
+        >
           <UserPlus size={18} />
           <span>Add User</span>
         </button>
@@ -138,45 +187,114 @@ export default function AdminUserManagement() {
       </div>
 
       {showModal && (
-        <div onClick={() => setShowModal(false)} className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl relative">
-            <button onClick={() => setShowModal(false)} className="absolute top-4 right-4 text-gray-400 hover:text-gray-700">
+        <div onClick={closeModal} className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div onClick={(e) => e.stopPropagation()} className="bg-white rounded-xl max-w-md w-full p-6 shadow-xl relative max-h-[90vh] overflow-y-auto">
+            <button onClick={closeModal} className="absolute top-4 right-4 text-gray-400 hover:text-gray-700">
               <X size={20} />
             </button>
             <h3 className="text-lg font-bold text-gray-900 mb-4">Add New User</h3>
+
+            {modalError && (
+              <div className="mb-4 rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700 font-medium flex items-start gap-2">
+                <AlertCircle size={16} className="text-red-500 shrink-0 mt-0.5" />
+                <div className="flex-1 leading-relaxed">{modalError}</div>
+              </div>
+            )}
+
             <form onSubmit={handleCreate} className="space-y-4">
               <div>
                 <label className="block text-sm text-gray-600 mb-1">Full Name *</label>
-                <input required value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20" />
+                <input
+                  required
+                  value={form.full_name}
+                  onChange={(e) => {
+                    setForm({ ...form, full_name: e.target.value });
+                    if (modalError) setModalError('');
+                  }}
+                  placeholder="e.g. John Doe"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20"
+                />
               </div>
+
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="block text-sm text-gray-600 mb-1">Username *</label>
-                  <input required value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20" />
+                  <input
+                    required
+                    value={form.username}
+                    onChange={(e) => {
+                      setForm({ ...form, username: e.target.value });
+                      if (modalError) setModalError('');
+                    }}
+                    placeholder="e.g. jdoe"
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20"
+                  />
                 </div>
                 <div>
                   <label className="block text-sm text-gray-600 mb-1">Phone</label>
-                  <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
-                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20" />
+                  <input
+                    value={form.phone}
+                    onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                    placeholder="e.g. 0712345678"
+                    className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20"
+                  />
                 </div>
               </div>
+
               <div>
                 <label className="block text-sm text-gray-600 mb-1">Email *</label>
-                <input required type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20" />
+                <input
+                  required
+                  type="email"
+                  value={form.email}
+                  onChange={(e) => {
+                    setForm({ ...form, email: e.target.value });
+                    if (modalError) setModalError('');
+                  }}
+                  placeholder="e.g. jdoe@fmrc.gov.lk"
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20"
+                />
               </div>
+
               <div>
                 <label className="block text-sm text-gray-600 mb-1">Temporary Password *</label>
-                <input required type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20" />
-                <p className="mt-1.5 text-[11px] text-gray-400">{PASSWORD_REQUIREMENTS_MESSAGE}</p>
+                <div className="relative">
+                  <input
+                    required
+                    type={showPassword ? "text" : "password"}
+                    value={form.password}
+                    onChange={(e) => {
+                      setForm({ ...form, password: e.target.value });
+                      if (modalError) setModalError('');
+                    }}
+                    placeholder="Enter strong password"
+                    className={`w-full rounded-md border pr-10 px-3 py-2 text-sm outline-none ${
+                      modalError && !PASSWORD_PATTERN.test(form.password)
+                        ? 'border-red-400 focus:border-red-500 focus:ring-2 focus:ring-red-200'
+                        : 'border-gray-300 focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20'
+                    }`}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 focus:outline-none"
+                    title={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                <p className="mt-1.5 text-[11px] text-gray-500 leading-tight">
+                  {PASSWORD_REQUIREMENTS_MESSAGE}
+                </p>
               </div>
+
               <div>
                 <label className="block text-sm text-gray-600 mb-1">Role *</label>
-                <select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}
-                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20">
+                <select
+                  value={form.role}
+                  onChange={(e) => setForm({ ...form, role: e.target.value })}
+                  className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm outline-none focus:border-[#006B33] focus:ring-2 focus:ring-[#006B33]/20"
+                >
                   <option value="Technical_Assistant">Technical Assistant</option>
                   <option value="Agriculture_Instructor">Agriculture Instructor</option>
                   <option value="Mechanical_Engineer">Mechanical Engineer</option>
@@ -184,7 +302,12 @@ export default function AdminUserManagement() {
                   <option value="Admin">Admin</option>
                 </select>
               </div>
-              <button type="submit" disabled={saving} className="w-full bg-[#006B33] text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-green-700 disabled:opacity-60">
+
+              <button
+                type="submit"
+                disabled={saving}
+                className="w-full bg-[#006B33] text-white py-2.5 rounded-lg font-semibold text-sm hover:bg-green-700 disabled:opacity-60 transition-colors"
+              >
                 {saving ? 'Creating...' : 'Create User'}
               </button>
             </form>

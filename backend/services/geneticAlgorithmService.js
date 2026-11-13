@@ -3,7 +3,7 @@ import { getValidWorkingDays } from './ruleBasedService.js';
 
 const timeSlots = ["Full Day"];
 
-const createRandomSchedule = (validTests, fields, tas, holidays = [], allSeasons = []) => {
+const createRandomSchedule = (validTests, fields, tas, holidays = [], allSeasons = [], taLeaves = []) => {
     let schedule = {};
     
     // Generate up to 365 days using rule-based working days generator (skips weekends and holidays)
@@ -13,6 +13,8 @@ const createRandomSchedule = (validTests, fields, tas, holidays = [], allSeasons
     const counters = { any: 0 };
     validTests.forEach((test) => {
         let assignedDay = null;
+        const isTAOnLeaveOnDay = (dateStr) =>
+            test.requiredTA && taLeaves.some(l => Number(l.user_id) === Number(test.requiredTA) && l.leave_date === dateStr);
 
         if (test.requiredSeason && test.requiredSeason !== 'Any' && allSeasons && allSeasons.length > 0) {
             const validSeasonDays = days.filter(d => {
@@ -23,32 +25,23 @@ const createRandomSchedule = (validTests, fields, tas, holidays = [], allSeasons
                 );
             });
             if (validSeasonDays.length > 0) {
-                if (counters[test.requiredSeason] === undefined) counters[test.requiredSeason] = 0;
-                let attempts = 0;
-                while (attempts < validSeasonDays.length) {
-                    const seasonIdx = counters[test.requiredSeason] % validSeasonDays.length;
-                    const candidateDay = validSeasonDays[seasonIdx].dateString;
-                    counters[test.requiredSeason]++;
-                    if (!schedule[candidateDay] || schedule[candidateDay].length === 0) {
+                for (let i = 0; i < validSeasonDays.length; i++) {
+                    const candidateDay = validSeasonDays[i].dateString;
+                    if ((!schedule[candidateDay] || schedule[candidateDay].length === 0) && !isTAOnLeaveOnDay(candidateDay)) {
                         assignedDay = candidateDay;
                         break;
                     }
-                    attempts++;
                 }
             }
         }
         
         if (!assignedDay) {
-            let attempts = 0;
-            while (attempts < days.length) {
-                const dayIndex = counters.any % days.length; 
-                const candidateDay = days[dayIndex].dateString;
-                counters.any++;
-                if (!schedule[candidateDay] || schedule[candidateDay].length === 0) {
+            for (let i = 0; i < days.length; i++) {
+                const candidateDay = days[i].dateString;
+                if ((!schedule[candidateDay] || schedule[candidateDay].length === 0) && !isTAOnLeaveOnDay(candidateDay)) {
                     assignedDay = candidateDay;
                     break;
                 }
-                attempts++;
             }
             // fallback if totally full (shouldn't happen)
             if (!assignedDay) {
@@ -79,7 +72,7 @@ const createRandomSchedule = (validTests, fields, tas, holidays = [], allSeasons
 };
 
 // mutation
-const mutateSchedule = (schedule, fields, tas, globalDays = []) => {
+const mutateSchedule = (schedule, fields, tas, globalDays = [], taLeaves = []) => {
     let mutated = {};
     Object.keys(schedule).forEach(k => {
         mutated[k] = JSON.parse(JSON.stringify(schedule[k]));
@@ -99,7 +92,10 @@ const mutateSchedule = (schedule, fields, tas, globalDays = []) => {
         const allAvailableDays = globalDays.length > 0 ? globalDays : Object.keys(mutated);
         const targetDay = allAvailableDays[Math.floor(Math.random() * allAvailableDays.length)];
 
-        if (sourceDay !== targetDay) {
+        const isTargetTAOnLeave = testToMove.test.requiredTA &&
+            taLeaves.some(l => Number(l.user_id) === Number(testToMove.test.requiredTA) && l.leave_date === targetDay);
+
+        if (sourceDay !== targetDay && !isTargetTAOnLeave && (!mutated[targetDay] || mutated[targetDay].length === 0)) {
             // Move it!
             mutated[sourceDay].splice(testIndex, 1);
             if (!mutated[targetDay]) mutated[targetDay] = [];
@@ -172,7 +168,7 @@ export const runGA = (validTests, rainyDates = [], fields = [], tas = [], holida
 
     let initialPopulation = [];
     for (let i = 0; i < 50; i++) {
-        initialPopulation.push(createRandomSchedule(validTests, fields, tas, holidays, allSeasons));
+        initialPopulation.push(createRandomSchedule(validTests, fields, tas, holidays, allSeasons, taLeaves));
     }
 
     // fitness function
@@ -289,7 +285,7 @@ export const runGA = (validTests, rainyDates = [], fields = [], tas = [], holida
     const config = {
         population: initialPopulation,
         fitness: calculateFitness,
-        mutate: (sched) => mutateSchedule(sched, fields, tas, globalDays),
+        mutate: (sched) => mutateSchedule(sched, fields, tas, globalDays, taLeaves),
         crossover: crossoverSchedules,
         optimization: 'maximum'
     };

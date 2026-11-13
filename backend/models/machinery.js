@@ -1,4 +1,5 @@
 import db from '../config/db.js';
+import { computeEstimation } from '../services/predictiveEstimationService.js';
 
 export const createMachinery = async ({ machine_name, model, supplier, registration_date, responsible_ta_id, required_labours }) => {
     const [result] = await db.query(
@@ -26,12 +27,58 @@ export const getAllMachinery = async () => {
         GROUP BY m.machine_id
         ORDER BY m.created_at DESC
     `);
-    return rows;
+
+    let pendingCount = 0;
+    try {
+        const [[{ count }]] = await db.query(
+            `SELECT COUNT(*) AS count FROM Test_Records WHERE status IN ('Draft', 'Submitted', 'Reviewed')`
+        );
+        pendingCount = count || 0;
+    } catch (e) {}
+
+    return rows.map((m) => {
+        try {
+            const est = computeEstimation({
+                machineId: m.machine_id,
+                machineName: m.machine_name,
+                baseDate: m.registration_date || m.created_at || new Date(),
+                queueCount: pendingCount
+            });
+            return {
+                ...m,
+                estimated_duration_days: est.estimatedDuration,
+                estimated_report_date: est.estimatedCompletionDate,
+                estimation_breakdown: est.breakdown
+            };
+        } catch (e) {
+            return m;
+        }
+    });
 };
 
 export const getMachineryById = async (machineId) => {
     const [rows] = await db.query(`SELECT * FROM Machinery WHERE machine_id = ?`, [machineId]);
-    return rows[0] || null;
+    if (!rows[0]) return null;
+    const m = rows[0];
+    try {
+        const [[{ count }]] = await db.query(
+            `SELECT COUNT(*) AS count FROM Test_Records WHERE status IN ('Draft', 'Submitted', 'Reviewed')`
+        );
+        const est = computeEstimation({
+            machineId: m.machine_id,
+            machineName: m.machine_name,
+            baseDate: m.registration_date || m.created_at || new Date(),
+            queueCount: count || 0
+        });
+        return {
+            ...m,
+            estimated_duration_days: est.estimatedDuration,
+            estimated_report_date: est.estimatedCompletionDate,
+            estimation_breakdown: est.breakdown
+        };
+    } catch (e) {
+        return m;
+    }
 };
 
 export const updateMachinery = async (machineId, {
