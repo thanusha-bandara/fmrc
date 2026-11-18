@@ -61,3 +61,8 @@ export const listLabourAvailability = async ({ labourId, from, to } = {}) => {
     `, params);
     return rows;
 };
+
+export const getLabourLeaves = async () => {
+    const [rows] = await db.query(`SELECT labour_id, DATE_FORMAT(date, '%Y-%m-%d') as leave_date FROM labour_availability WHERE is_on_leave = TRUE`);
+    return rows || [];
+};

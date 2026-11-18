@@ -1,70 +1,18 @@
-import db from '../config/db.js';
 import { filterAndSortTests } from './ruleBasedService.js';
 import { runGA } from './geneticAlgorithmService.js';
 import { getRainyDates } from './weatherService.js';
-import { getFarmSeasons } from '../models/field.js';
+import { getFarmSeasons, listFarmDailyStatus } from '../models/field.js';
 import { getTechnicalAssistants, getTALeaves } from '../models/user.js';
 import { getCustomHolidays } from '../models/calendar.js';
-
-export const persistSchedule = async (testIds, bestSchedule) => {
-    const connection = await db.getConnection();
-    try {
-        await connection.beginTransaction();
-
-        if (testIds.length > 0) {
-            await connection.query(`DELETE FROM Schedules WHERE test_id IN (?) AND status IN ('Scheduled', 'Rescheduled')`, [testIds]);
-        }
-
-        for (const [dateStr, assignments] of Object.entries(bestSchedule)) {
-            for (const assignment of assignments) {
-                await connection.query(`
-                    INSERT INTO Schedules (test_id, assigned_ta_id, scheduled_date, time_slot, status)
-                    VALUES (?, ?, ?, ?, 'Scheduled')
-                `, [
-                    assignment.test.test_id,
-                    assignment.assigned_ta_id,
-                    assignment.scheduled_date,
-                    assignment.time_slot
-                ]);
-            }
-        }
-
-        await connection.commit();
-    } catch (error) {
-        await connection.rollback();
-        console.error("Error in persistSchedule:", error.message);
-        throw error;
-    } finally {
-        connection.release();
-    }
-};
+import { getLabourLeaves } from '../models/labour.js';
+import { getSchedulableTests, persistSchedule } from '../models/schedule.js';
 
 export const runAutomaticScheduling = async () => {
     try {
         console.log("Starting automatic rescheduling...");
 
         // 1. Fetch pending and currently 'Scheduled' / 'Rescheduled' tests
-        const [tests] = await db.query(`
-            SELECT 
-                tr.test_id, 
-                tr.test_name, 
-                tr.is_field_test,
-                tr.requires_water,
-                tr.required_season,
-                tr.technical_assistant_id, 
-                m.registration_date as registrationDate,
-                m.machine_name,
-                m.responsible_ta_id as machine_responsible_ta,
-                m.required_labours,
-                MAX(s.schedule_id) as schedule_id
-            FROM Test_Records tr 
-            JOIN Machinery m ON tr.machine_id = m.machine_id 
-            LEFT JOIN Schedules s ON tr.test_id = s.test_id 
-            WHERE (s.test_id IS NULL OR s.status IN ('Scheduled', 'Rescheduled', 'Cancelled'))
-              AND tr.status = 'Draft'
-              AND COALESCE(m.is_on_hold, 0) = 0
-            GROUP BY tr.test_id
-        `);
+        const tests = await getSchedulableTests();
 
         if (tests.length === 0) {
             console.log("No tests to schedule.");
@@ -102,12 +50,11 @@ export const runAutomaticScheduling = async () => {
         const allHolidays = await getCustomHolidays();
         
         // Fetch labour leaves
-        const [labourLeavesArray] = await db.query(`SELECT labour_id, DATE_FORMAT(date, '%Y-%m-%d') as leave_date FROM labour_availability WHERE is_on_leave = TRUE`);
-        const labourLeaves = labourLeavesArray || [];
+        const labourLeaves = await getLabourLeaves();
 
         // Fetch daily farm statuses (field closed/water available overrides)
-        const farmDailyStatusArray = await db.query(`SELECT date, is_field_available, is_water_available FROM farm_daily_status`);
-        const farmDailyStatus = farmDailyStatusArray[0].reduce((acc, curr) => {
+        const farmDailyStatusArray = await listFarmDailyStatus({});
+        const farmDailyStatus = farmDailyStatusArray.reduce((acc, curr) => {
             const dateStr = typeof curr.date === 'string' ? curr.date.split("T")[0] : curr.date.toISOString().split("T")[0];
             acc[dateStr] = curr;
             return acc;
