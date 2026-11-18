@@ -41,6 +41,7 @@ export default function FieldSeasons() {
       setShowModal(false);
       setForm({ seasonType: "Ploughing", startDate: "", endDate: "" });
       load();
+      Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Season added successfully', showConfirmButton: false, timer: 3000 });
     } catch (err) {
       setError(getErrorMessage(err, "Could not add season."));
     } finally {
@@ -49,11 +50,13 @@ export default function FieldSeasons() {
   };
 
   const removeSeason = async (id) => {
-    if (!window.confirm("Are you sure you want to remove this season?")) return;
+    const result = await Swal.fire({ title: 'Are you sure?', text: 'Remove this season?', icon: 'warning', showCancelButton: true, confirmButtonColor: '#006B33', cancelButtonColor: '#d33', confirmButtonText: 'Yes, remove it!' });
+    if (!result.isConfirmed) return;
     setError("");
     try {
       await deleteFarmSeason(id);
       load();
+      Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Season removed successfully', showConfirmButton: false, timer: 3000 });
     } catch (err) {
       setError(getErrorMessage(err, "Could not remove season."));
     }

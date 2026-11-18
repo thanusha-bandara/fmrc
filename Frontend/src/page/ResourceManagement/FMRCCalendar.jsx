@@ -117,8 +117,9 @@ export default function FMRCCalendar() {
               const isToday = cell.currentMonth && toISODate(cell.date) === toISODate(new Date());
               let cellClasses = "flex items-center justify-center rounded-lg font-medium text-base ";
               if (!cell.currentMonth) cellClasses += "bg-white text-gray-300";
+              else if (info?.holiday_type === "Government" && info?.is_holiday) cellClasses += "bg-blue-600 text-white cursor-pointer hover:bg-blue-700 transition-colors shadow-sm";
               else if (info?.is_holiday) cellClasses += "bg-red-600 text-white cursor-pointer hover:bg-red-700 transition-colors shadow-sm";
-              else if (info?.holiday_type === "Government") cellClasses += "bg-blue-600 text-white cursor-pointer hover:bg-blue-700 transition-colors shadow-sm";
+              else if (info?.holiday_type === "Government") cellClasses += "bg-blue-50 text-blue-800 border border-blue-200 cursor-pointer hover:bg-blue-100 transition-colors";
               else cellClasses += "bg-white text-gray-800 cursor-pointer hover:bg-gray-100 transition-colors border border-transparent hover:border-gray-200";
               if (isToday) cellClasses += " ring-2 ring-offset-1 ring-emerald-500";
 
