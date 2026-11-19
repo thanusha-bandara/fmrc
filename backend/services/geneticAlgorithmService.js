@@ -175,7 +175,7 @@ export const runGA = (validTests, rainyDates = [], fields = [], tas = [], holida
     const calculateFitness = (schedule) => {
         let score = 1000;
         const taAssignments = {};
-        const fieldAssignments = {};
+    
 
         Object.entries(schedule).forEach(([dateStr, assignments]) => {
             // ONLY ONE TEST PER DAY CONSTRAINT

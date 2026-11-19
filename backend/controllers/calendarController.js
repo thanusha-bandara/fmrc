@@ -1,5 +1,5 @@
 import { addCustomHoliday, setHolidayInactive } from '../models/calendar.js';
-import { handleRescheduleForHoliday } from '../services/rescheduleService.js';
+import { markHolidaySchedulesForRescheduling } from '../models/schedule.js';
 import { runAutomaticScheduling } from '../services/autoScheduleService.js';
 import { logResourceAudit } from '../models/auditLog.js';
 import db from '../config/db.js';
@@ -60,7 +60,11 @@ export const markHoliday = async (req, res) => {
         await addCustomHoliday(date, reason || "Special Non-Working Day");
 
         // 2. Mark existing tests as rescheduled
-        const affectedTestsCount = await handleRescheduleForHoliday(date);
+        const affectedTestsCount = await markHolidaySchedulesForRescheduling(date).catch((error) => {
+            console.error("Error during reschedule process:", error.message);
+            throw error;
+        });
+        console.log(`Rescheduled ${affectedTestsCount} tests due to new holiday on ${date}.`);
 
         // 3. Automatically trigger the full GA rescheduling
         runAutomaticScheduling();
