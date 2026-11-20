@@ -1,18 +1,14 @@
 import { filterAndSortTests } from '../services/ruleBasedService.js';
 import { runGA } from '../services/geneticAlgorithmService.js';
 import { getRainyDates } from '../services/weatherService.js';
-import { getFarmSeasons } from '../models/field.js';
+import { getFarmSeasons, listFarmDailyStatus } from '../models/field.js';
 import { getTechnicalAssistants, getTALeaves } from '../models/user.js';
 import { getCustomHolidays } from '../models/calendar.js';
-import { persistSchedule } from '../services/autoScheduleService.js';
-import db from '../config/db.js';
+import { getSchedulableTests, listSchedules, persistSchedule } from '../models/schedule.js';
 
 export const generateSchedule = async (req, res) => {
     try {
-        const [tests] = await db.query(`
-            SELECT tr.test_id, tr.test_name, tr.is_field_test, tr.requires_water, tr.required_season, tr.technical_assistant_id, m.registration_date as registrationDate, m.machine_name, m.responsible_ta_id as machine_responsible_ta, m.required_labours, MAX(s.schedule_id) as schedule_id
-            FROM Test_Records tr JOIN Machinery m ON tr.machine_id = m.machine_id LEFT JOIN Schedules s ON tr.test_id = s.test_id WHERE (s.test_id IS NULL OR s.status IN ('Scheduled', 'Rescheduled', 'Cancelled')) AND tr.status = 'Draft' AND COALESCE(m.is_on_hold, 0) = 0 GROUP BY tr.test_id
-        `);
+        const tests = await getSchedulableTests();
 
         if (tests.length === 0) return res.status(200).json({ success: true, message: "No tests to schedule.", schedule: [] });
 
@@ -47,8 +43,8 @@ export const generateSchedule = async (req, res) => {
         const allHolidays = await getCustomHolidays();
 
         // Fetch daily farm statuses
-        const farmDailyStatusArray = await db.query(`SELECT date, is_field_available, is_water_available FROM farm_daily_status`);
-        const farmDailyStatus = farmDailyStatusArray[0].reduce((acc, curr) => {
+        const farmDailyStatusArray = await listFarmDailyStatus({});
+        const farmDailyStatus = farmDailyStatusArray.reduce((acc, curr) => {
             const dateStr = typeof curr.date === 'string' ? curr.date.split("T")[0] : curr.date.toISOString().split("T")[0];
             acc[dateStr] = curr;
             return acc;
@@ -79,22 +75,7 @@ export const generateSchedule = async (req, res) => {
 
 export const getSchedules = async (req, res) => {
     try {
-        const [schedules] = await db.query(`
-            SELECT 
-                s.schedule_id,
-                s.scheduled_date,
-                s.time_slot,
-                s.status,
-                t.test_name,
-                t.is_field_test,
-                m.machine_name,
-                u.full_name as assigned_ta_name
-            FROM Schedules s
-            JOIN Test_Records t ON s.test_id = t.test_id
-            JOIN Machinery m ON t.machine_id = m.machine_id
-            LEFT JOIN Users u ON s.assigned_ta_id = u.user_id
-            ORDER BY s.scheduled_date ASC, s.time_slot ASC
-        `);
+        const schedules = await listSchedules();
 
         res.status(200).json({
             success: true,

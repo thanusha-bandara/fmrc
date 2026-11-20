@@ -1,5 +1,5 @@
-export const filterAndSortTests = (pendingTests, allSeasons) => {
-    // Institutional Priority Rule: Strictly sort tests by registration date (FCFS)
+export const filterAndSortTests = (pendingTests) => {
+    
     const sortedTests = [...pendingTests].sort((a, b) => {
         const dateA = new Date(a.registrationDate);
         const dateB = new Date(b.registrationDate);
@@ -9,11 +9,7 @@ export const filterAndSortTests = (pendingTests, allSeasons) => {
     return sortedTests;
 };
 
-/**
- * Deterministic Calendar Rule:
- * Filters out Saturdays, Sundays, and FMRC public/institutional holidays
- * to produce the universe of eligible working days.
- */
+
 export const getValidWorkingDays = (requiredDays, holidays = [], startDate = new Date()) => {
     const days = [];
     let i = 0;
